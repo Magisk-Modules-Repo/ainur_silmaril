@@ -1,4 +1,0 @@
-ro.config.hifi_enhance_support=1
-persist.audio.hifi_adv_support=1
-persist.audio.hifi_dac=ON
-persist.lge.hifiquaddac=true
