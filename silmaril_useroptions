@@ -1,0 +1,828 @@
+# AINUR SILMARIL
+# UserOptions (UO)
+UVER=82
+
+#### INSTRUCTIONS ####
+#
+# ! UO (useroptions) file isn't needed for SILMARIL to process !
+#
+# UO provides a list of extra options to control and experiment with
+# some of the mod/soc/device features. Options may "overlap" each
+# other - mod will automatically handle best scenario.
+#
+# UO is generated automatically in internal storage on first install.
+# If you want to modify initial install - edit this file and place at
+# the root of your internal storage for installer to pick up flags to
+# use.
+#
+# Each flag gives a brief explanation, as well as explicit range
+# of values/strings you can use. Make sure to follow given values.
+# In some cases installer will print a warning if the value you set
+# is incorrect per certain flag.
+#
+# ENABLE FLAG: set value to *true* for boolean flag, or use suggested
+# range of numbers/strings per non-boolean flags.
+#
+# DISABLE FLAG: leave it blank - this applies to ALL flags whether its
+# boolean/number/string.
+#
+# ! Reinstalling SILMARIL is mandatory for changes to take effect !
+#
+# Flashing module over already installed might NOT work as intended
+# in some cases. It is advised to uninstall & reinstall module again
+# each time you set/unset/change any flag in UO.
+#
+# If something goes wrong leading to issues & bugs:
+#  > UNSET (leave blank after =) flags if you set any,
+#    find which flag is causing the issue
+#  > In case that didn't work - scroll to the very
+#    bottom of UO file - you will find DEBUG section
+#    you can follow to try resolving your issue.
+#
+
+
+#### UNIVERSAL OPTIONS ####
+
+## U_VSTP: VOLUME SLIDER STEPS
+#
+#   OS volume is calculated from a logarithmic attenuation
+#   curve, where a volume index maps corresponding dB value.
+#   Db is then converted to an amplitude scale. OS fills gaps
+#   between the index points linearly.
+#   Ideally, you want reattenuated curve for every set of
+#   volume steps. SILMARIL will automatically reattenuate the
+#   curve based off desired *U_VSTP* value.
+#   Perfectly, *U_VSTP* value should reflect the entire index
+#   range (*100*) allowed by OS. This way slider steps match
+#   points index, allowing for granular volume adjustment without
+#   any linear rounding inbetween steps.
+#
+# 	*Ex: U_VSTP=100* for recommended volume steps/amplitude slider.
+#
+U_VSTP=
+
+## U_HL: SAMPLER HALF LENGTH
+#
+#   Variable resampling rate sampler is practically linear
+#   phase with a symmetrical impulse response that ensures
+#   the phase shift is proportional to the frequency. Half
+#   Length is the number of samples till IR center.
+#
+#   A shorter IR (smaller half length) allows for a faster
+#   transition between frequencies, resulting in a steeper
+#   filter response and potentially higher aliasing.
+#
+#   A longer impulse response (larger half length) allows
+#   for a more gradual transition and improves frequency
+#   selectivity. Additionally, a longer IR facilitates
+#   better attenuation of aliasing components, reducing
+#   unwanted artifacts in the signal. However, this comes
+#   at the cost of potentially higher latency.
+#
+#   Filter length = steepness = halflength*2
+#
+#   SILMARIL sets *960* taps polyphase filter, which can
+#   be considered as studio master quality.
+# ! This might be too much for some devices, leading to no sound !
+# !    If that's your case - set *U_HL* to *480* taps or less    !
+#
+U_HL=960
+
+## U_SBA: SAMPLER STOPBAND ATTENUATION
+#
+#   Sampling always alias - high frequency signals can fold
+#   back onto lower frequencies creating distortions. To
+#   mitigate that stopband attenuation is used. It can also
+#   slightly reduce noise interference and suppress aliasing
+#   from frequencies above the Nyquist limit.
+#
+#   By default, the maximum stopband value is limited to
+#   144dB (24bit). This remains relevant for most commonly
+#   used audio formats.
+#
+#   You can experiment setting *U_SBA* per format, however,
+#   since the output is always constrained by hardware's
+#   noise floor - best way is setting *U_SBA* value around
+#   device's SNR.
+#
+#   SILMARIL sets stopband attenuation to *127*, which is
+#   around the practical reach for most devices.
+#
+U_SBA=127
+
+## U_ESTV: EQUAL STEREO SPEAKER VOLUME 
+#
+#   Devices that use earpiece in stereo mode sometimes
+#   set unequal curves for both speakers. This creates
+#   perceivable inconsistency between the two. 
+#   SILMARIL can set a custom well attenuated curve for
+#   both speakers to mitigate that issue for media playback
+#   scenarios.
+#   Keep in mind that earpiece is usually different from
+#   the main speaker - so even if equal curve is set for
+#   both, you still might experience inconsistent output.
+#
+#   You can set *U_ESTV=true* to force use equal vol, or
+#   leave untouched for default behavior
+#
+U_ESTV=
+
+## U_APFF: FLOATING POINT FORMAT
+#
+#   Usually, even being present in the system - floating
+#   point format *AUDIO_FORMAT_PCM_FLOAT* isn't exposed
+#   in audio policy interface. *U_APFF* lets you add, or
+#   force float format to attached mix and device ports.
+#
+#   You can choose between:
+#   Add (default): float format is added to ports along the
+#        full list of all system-supported formats.
+#
+#   Force: existing format profiles are commented out and
+#          ports are forced to float format only.
+#
+#   Chances of any app calling for float format playback
+#   are extremely slim, but in case of such scenario -
+#   adding it to the list of exposed formats is a good
+#   idea. For example, some audio formats, like flac can
+#   be decoded by system (non-offload) as float.
+#
+#   When forced - system will have to convert source to
+#   float and in some cases back (unless decoding as float).
+#   This doesn't seem to bring any benefits rightaway.
+#   However, when dealing with float - parts of native
+#   audio subsystem are branched to a more precise math
+#   as well. This is somewhat benefitial for AINULINDALE.
+#   The most interesting case is the volume power calc -
+#   floating point provides higher range numbers compared
+#   to that of integer formats. This results in android
+#   giving float a head of *+3dBFS* above the max threshold
+#   - in other words, it's *~41%* more amplitude before
+#   sound starts clipping and distorting.
+#   Note that most SOC internal codecs are unlikely to
+#   support float format, neither do some external dacs
+#   - which would result in yet another conversion.
+#
+#   Feel free to experiment.
+#   By default SILMARIL uses *add* to expose all system-
+#   supported formats in attached ports.
+#
+#   You can set *U_APFF=add* to add float format, or
+#   *U_APFF=force* to force float format only.
+#
+U_APFF=
+
+## U_APDBR: DEEP BUFFER REMOVAL
+#
+#   A common misconception throughout all these years being
+#   deepbuffer somehow responsible for worsening audio.
+#   If the idea being deepbuffer is bad for setting low
+#   power state, then in reality it's the opposite of bad.
+#   When audio is processed it's chopped into chunks - i.e.
+#   frames. The higher the fidelity of the source - the
+#   more frames. These frames have to be buffered correctly
+#   to avoid any underruns, which is the reason for deepbuffer
+#   to exist. It provides enough memory for all chunks without
+#   any need to constantly processing them on the go. When
+#   deepbuffer is removed - the system is likely to fallback
+#   to either of ll threads. Which might result in buffer underrun,
+#   and definitely in wasted processing/battery resources.
+#
+#   By default SILMARIL adds system-supported profiles to
+#   deepbuffer to mitigate the intention of dbuffer removal
+#   due to lack of exposed formats (for external app to form
+#   a playbackthread).
+#   But if for whatever reason removing deepbuffer is absolutely
+#   vital - you can do so by setting *U_APDBR=true*, this 
+#   will eliminate as many deepbuffer tails in the system
+#   as possible.
+#
+U_APDBR=
+
+## U_SDRC: SPEAKER DRC
+#
+#   Disable speaker dynamic range compression. 
+#   By design intended only for default outputdevice globally
+#   attached - AUDIO_DEVICE_OUT_SPEAKER/_SAFE.
+#
+#   Useable up to Android 13 (SDK33 and below). Newer SDKs
+#   dropped that functionality.
+#
+# 	Set *U_SDRC=true* to force disable speaker DRC, or
+#   leave untouched for default behavior
+#
+U_SDRC=
+
+## U_BTDAO: DISABLE BLUETOOTH A2DP HW OFFLOAD
+#
+#   A2DP offload is used to offload processing task to
+#   a dedicated bt hw.
+#   Disabling it will run decoding on device soc instead.
+#   This reflects the offload switch in developer settings.
+#
+#   Set *U_BTDAO=true* to force disable a2dp offload,
+#   or leave untouched for default behavior
+#
+U_BTDAO=
+
+## U_BTDAV: DISABLE BLUETOOTH ABSOLUTE VOLUME
+#
+#   By default bluetooth device media volume is synchronized
+#   with device volume steps it's connected to. In some cases
+#   this doesn't let bluetooth device reach the maximum level.
+#   Disabling absolute volume tells framework to set independent
+#   volume levels for the bluetooth device & the device it's 
+#   connected to.
+#   This setting fully reflects the one can usually be found
+#   in device's developer settings menu.
+#
+#   Set *U_BTDAV=true* to force disable absolute volume,
+#   or leave untouched for default behavior
+#
+U_BTDAV=
+
+## U_AAEM: AAUDIO EXCLUSIVE MODE
+#
+#   AAudio API provides better latency over older Open
+#   SLES implementation. Exclusive AAudio mode bypasses
+#   audioserver and writes directly into MMAP buffer.
+#
+#   This switch is to experiment if you already have
+#   AAudio useable case. If software you're using for
+#   playback isn't using AAudio - it won't do anything.
+#
+#   You can set *U_AAEM=true* to force use AAudio, or
+#   leave untouched for default behavior
+#
+U_AAEM=
+
+#
+##
+
+### OEM SFX WHITELIST
+#
+#   By default SILMARIL removes android and vendor audio
+#   effects that participate in playback scenarios. However,
+#   in some OEM cases nulling effect libraries out might
+#   result in bootloop, or sound loss - to mitigate that
+#   *U_OEM_KEEPFX* flag lets you whitelist certain OEM effects
+#   from being removed.
+#
+
+## KEEP OEM & Android BT SoundFX:
+#   Bluetooth spatial effects
+#
+#   To restore BT SFX put *true* after =
+# 	*Ex: U_BT_KEEPFX=true*
+#
+U_BT_KEEPFX=
+
+## KEEP OEM SoundFX:
+#   Including dolby, dirac, dts & various custom
+#   OEM SFX
+#
+#   To restore OEM effects put *true* after =
+# 	*Ex: U_OEM_KEEPFX=true*
+#
+U_OEM_KEEPFX=
+
+## MANUAL SFX INPUT
+#
+#   In case *U_OEM_KEEPFX* flag didn't succeed in resolving
+#   issues, you can manually add in a lib, or a list of
+#   libs to prevent from being nulled. It applies only to
+#   third-party (OEM) SFX.
+#
+# !                                                         !
+#                          NOTE
+#             > DON'T add .so extension
+#             > ADD lib prefix to the beginning
+#               of each library name
+#             > Libraries in a list SHOULD be
+#               separated by space
+# !                                                         !
+#
+#   *Ex: U_MANUAL_KEEPFX=lib1 lib2 ...*
+#
+U_MANUAL_KEEPFX=
+
+###
+
+
+
+### QUALCOMM OPTIONS ###
+
+## Q_AGA: CODEC ANALOG GAIN
+#
+#   Range from 0 to XX (*~168db*)
+#   Default value usually equals *0db* gain.
+#
+# !             Don't increase too much,                 !
+# !    otherwise sound might distort/start crackling     !
+#
+#   Analog gain will inevitably raise the noise floor,
+#   and the audible non-linear distortion will hit a lot
+#   earlier. In this regard there is no need to set the
+#   absolute maximum value and oversaturate the signal.
+#
+#   Use numbers within range, example: *Q_AGA=17*
+#
+Q_AGA=
+
+## Q_HDGA: HEADPHONE DIGITAL GAIN
+#
+#   Range from 0 (*-84db*) to 124 (*+40db*)
+#   Default value usually is 84 (*0db*)
+#
+# !             Don't increase too much,                 !
+# !    otherwise sound might distort/start crackling     !
+#
+#   Digital gain is linear and doesn't introduce that
+#   much of a problem, as analog might. However that
+#   doesn't digital gain is bulletproof - it still
+#   might bring harmonic & quantization noise. Balacning
+#   analog & digital gain is the key to flawless
+#   performance.
+#
+#   Might not work on some recent platforms with absent
+#   gain controls.
+#
+#   Use numbers within range, example: *Q_HDGA=74*
+#
+Q_HDGA=
+
+## Q_SDGA: SPEAKER DIGITAL GAIN
+#
+#   Range from 0 (*-84db*) to 124 (*+40db*)
+#   Default value usually is 84 (*0db*)
+#
+# !             Don't increase too much,                 !
+# !    otherwise sound might distort/start crackling     !
+#
+#   Might not work on some recent platforms with absent
+#   gain controls.
+#
+#   Use numbers withing range, example: *Q_SDGA=86*
+#
+Q_SDGA=
+
+## Q_HCOMP: HEADPHONE COMPANDER
+#
+#   Compander is compressing and expanding audio
+#   signal to fit wider DR into narrower bandwidth.
+#   It helps pushing quieter parts closer, making
+#   them less susceptible to being masked by noise.
+#   The idea is to reduce the impact of quantization
+#   noise in the quieter parts of the signal by
+#   increasing their amplitude before quantization.
+#
+#   Companding may introduce distortion and artifacts
+#   like "pumping" or "breathing" - where the noise
+#   floor or background noise becomes more noticeable
+#   during quieter parts of the audio. If compander
+#   can't handle attack & release times properly - it
+#   can introduce time-based artifacts. For example, a
+#   fast attack time might cause the compander to react
+#   too quickly to transient peaks, leading to an unnatural
+#   or "squashed" sound.
+#   Lastly, companding is nonlinear process, which means
+#   it may introduce artifacts that were not present in
+#   the signal, making them more apparent during the
+#   expansion phase, particularly in complex transients,
+#   which may loose its clarity due to smearing.
+#
+# 	Set *Q_HCOMP=true* to force disable hph compander,
+# 	or leave untouched for default behavior
+#
+Q_HCOMP=
+
+## Q_SCOMP: SPEAKER COMPANDER
+#
+#   Same as above, but for speakers only.
+#
+# 	Set *Q_SCOMP=true* to force disable spk compander,
+# 	or leave untouched for default behavior
+#
+Q_SCOMP=
+
+## Q_CBIT: CODEC BITWIDTH
+#
+#   Set codec bitwidth across various interfaces
+#   available on given platform. Available formats
+#   for most platforms:
+#   *S16_LE S24_LE S24_3LE S32_LE*
+#
+#   Forcing higher bitwidth for a low discretization
+#   source may introduce dithering artifacts, due to
+#   quantization errors.
+#
+# !             CAN RESULT IN BUGS/BOOTLOOPS             !
+#
+#   *Ex: Q_CBIT=S16_LE*
+#
+Q_CBIT=
+
+## Q_CSMPL: CODEC SAMPLINGRATE
+#
+#   Set codec samplerate across various interfaces
+#   available on given platform. Available rates
+#   for most platforms:
+#   *KHZ_44P1 KHZ_48 KHZ_96 KHZ_88P2*
+#   *KHZ_176P4 KHZ_192 KHZ_352P8 KHZ_384*
+#
+#   Forcing higher rate on low rate source (non 1:1)
+#   may:
+#   > introduce interpolation artifacts (ringing & noise)
+#   > high frequencies signal information loss
+#   > lead to jitter & timing inconsistency
+#
+# !             CAN RESULT IN BUGS/BOOTLOOPS             !
+#
+#   *Ex: Q_CSMPL=KHZ_44P1*
+#
+Q_CSMPL=
+
+## Q_BTCSMPL: CODEC BLUETOOTH SAMPLINGRATE
+#
+#   Possible sampling rates for most platforms:
+#   *KHZ_44P1 KHZ_48 KHZ_96*
+#
+#   This forces sampling on the QC Codec side,
+#   however:
+#   > This doesn't fully align across whole system
+#     bt stack
+#   > Rates above KHZ_48 are unlikely to be unlocked
+#     in DSP, if its anyhow involved
+#   > This unlikely to switch/force rate for the bt
+#     sw codec, even if it enc/dec with DSP
+#
+#   *Ex: Q_BTCSMPL=KHZ_44P1*
+#
+Q_BTCSMPL=
+
+## Q_MBDRC: MULTI-BAND DRC
+#
+#   Disable speaker multi-band dynamic range compression.
+#   Multiband compression divides the audio spectrum into
+#   multiple frequency bands to reattenuate the level of
+#   the louder parts of the signal to control peaks.
+#   MBDRC has its downsides. Uneven frequency response -
+#   where some frequency bands may be over while others
+#   are under-compressed, which leads to tonal balance
+#   shift. Clipping artifacts. Loss of contrast between
+#   loud and quiet parts, due to over-compression. Phase
+# 	shifting distortion when certain frequencies cancel
+# 	each other out or sound unnatural.
+#
+# 	          Might not work on some devices.
+# !            CAN RESULT IN BUGS/SOUND LOSS            !
+#
+#   Set *Q_MBDRC=true* to force disable MBDRC, or leave
+#   untouched for default behavior
+#
+Q_MBDRC=
+
+## Q_FBUF: HAL FRAME BUFFER
+#
+#   The frame buffer in Audio HAL determines how many
+#   audio frames are processed in each period before the
+#   buffer is handed off to the next stage. It is important
+#   to provide a wider buffer, the heavier the source audio
+#   is (higher bitrate). Different buffer setup is critical
+#   for 2 common types of playback.
+#
+#   You can choose between:
+#   Latency   > more cpu intensive
+#             > jittery due to frequent buffer
+#               processing
+#             > risk of buffer underruns
+#             > ideal for real-time audio like
+#               live processing, voip, gaming
+#
+#   Frames    > more power efficient
+#             > smooth with fewer-to-none
+#               processing interrupts
+#             > less prone to buffer underrun
+#             > best for hi-res / high bitrate
+#               music content playback
+#
+# !                        NOTE                             !
+#   Qcom/OEMs/OS may override parameters based on selected
+#   stream or any other custom/internal logic.
+#
+# 	Set *Q_FBUF=latency* for lower latency
+# 	Set *Q_FBUF=frames* for smooth fbuffer
+#   Leave untouched for default behavior
+#
+Q_FBUF=
+
+## Q_DSPOD: HW DSP OFFLOAD
+#
+#   HW DSP is used to decode & de/compress audio data
+#   instead of cpu for better power efficiency. Qcom
+#   DSP supports popular formats like mp3, flac, ape,
+#   alac, aac to be offloaded. OffloadTrack derive
+#   from DirectThread - meaning it acts much in the
+#   same way - no mixing/sampling involved.
+#
+#   If *U_APFF=force* float format conversion is forced
+#   you're better to disable offload, to let system
+#   decode audio into float, bypassing dsp.
+#
+#   Set *Q_DSPOD=enable* to force enable offload
+#   Set *Q_DSPOD=disable* to force disable offload
+#   Leave untouched for default behavior
+#
+Q_DSPOD=
+
+## Q_HDSPBW: HW DSP BITWIDTH
+#
+#   Forces HW DSP to desired bitwidth. Possible
+#   bitwidth for most platforms:
+#   *16 24 32*
+#
+# !             CAN RESULT IN BUGS/BOOTLOOPS             !
+#
+# 	*Ex: Q_HDSPBW=24*
+#
+Q_HDSPBW=
+
+## Q_CPGD: CODEC POWER GATING
+#
+#   Disables the on-demand power control that lets
+#   the kernel switch off audio codec and audio bus
+#   that are not in use at the moment.
+#
+#   Not all platforms support power gating. Some
+#   kernels might not let pgating state changing.
+#
+# !             Necessary when Biquads used              !
+# !             CAN RESULT IN BUGS/BOOTLOOPS             !
+#
+#   Set *Q_CPGD=true* to force disable power gating,
+#   or leave untouched for default behavior
+#
+Q_CPGD=
+
+## Q_LGHIM: LG QUAD DAC HIGH IMPEDANCE MODE
+#
+# !          ONLY FOR LG DEVICES WITh ESS DAC            !
+#
+# 	Set *Q_LGHIM=true* to force enable high imp, or leave
+#   untouched for default behavior
+#
+Q_LGHIM=
+
+###
+
+
+
+### MTK OPTIONS ###
+
+## M_COFF: USB OFFLOAD
+#
+#   DSP (?) to USB offload.
+#   I'm honestly not sure about this one, since I couldn't
+#   find much info in MTK sources.
+#
+#   Set *M_COFF=true* to force enable, or leave untouched
+#   for default behavior
+#
+M_COFF=
+
+## M_GAIN: CODEC AUDIO GAIN
+#
+#   Set codec gain for Headphones & Lineout playback.
+#   Possible DB values for most MTK codecs:
+#   *8Db  7Db  6Db  5Db  4Db  3Db  2Db  1Db  0Db*
+#   *-1Db  -2Db  -3Db  -4Db  -5Db  -6Db  -7Db  -8Db*
+#   *-9Db  -10Db  -40db*
+#
+#   *Ex: M_GAIN=6Db*
+#
+M_GAIN=
+
+## M_DHPF: HIGH-PASS FILTER
+#
+#   High-pass filter (HPF) is shaping audio tonal
+#   balance by cutting low-frequency content off
+#   while preserving the rest of ranges. Filter
+#   applies a roll-off below a defined cutoff
+#   frequency, with a slope that determines how
+#   gradually or aggressively the low-end is
+#   attenuated. Overuse of HPF can make a content
+#   sound thin and unnatural, stripping warmth
+#   from vocals and instruments. Over-filtering
+#   can also remove ambient low-end reflections
+#   that contribute to depth and space, making
+#   a track feel unnaturally sterile and flat.
+#
+#   Set *M_DHPF=true* to force disable HPF, or
+#   leave untouched for default behavior
+#
+M_DHPF=
+
+## M_DRC: SOUNDFX DYNAMIC RANGE COMPRESSION
+#
+#   MTK Loudness enhancer FX seem to have DRC
+#   builtin, which you can disable with this
+#   switch.
+#
+#   Set *M_DRC=true* to force disable FX DRC,
+#   or leave untouched for default behavior
+#
+M_DRC=
+
+## M_IMP: CODEC IMPEDANCE
+#
+#   Support native impedance of your headphones
+#   on the codec side. According to MTK sources,
+#   possible values are:
+#   *16  32  64  128  256*
+#
+# !        UNSTABLE & NEEDS TESTING ON NEW PLATFORMS           !
+#
+#   *Ex: M_IMP=32* to force 32Ohm impedance, or
+#   leave untouched for default behavior
+#
+M_IMP=
+###
+
+
+
+### TENSOR PIXELS OPTIONS ###
+
+## T_CSMPL: AOC CODEC SAMPLING
+#
+#   Codec could take following sampling options:
+#   *SR_44P1K SR_48K SR_88P2K SR_96K SR_176P4K*
+#   *SR_192K*
+#
+# 	*Ex: T_CSMPL=SR_44P1K*
+#
+T_CSMPL=
+
+## T_CBIT: AOC CODEC BITWIDTH
+#
+#   Codec could take following format options:
+#   *S16_LE S24_LE S24_3LE S32_LE*
+#
+#   You DON'T want to force higher discretization
+#   on low source file, as results may end up in
+#   crackling or distorted sound
+#
+#   *Ex: T_CBIT=S16_LE*
+#
+T_CBIT=
+
+## T_CBTSMPL: AOC CODEC BLUETOOTH SAMPLING
+#
+#   Codec could take following sampling options:
+#   *SR_44P1K SR_48K SR_88P2K SR_96K SR_176P4K*
+#   *SR_192K*
+#
+# 	*Ex: T_CBTSMPL=SR_44P1K*
+#
+T_CBTSMPL=
+
+## T_CBTBIT: AOC CODEC BLUETOOTH BITWIDTH
+#
+#   Codec could take following format options:
+#   *S16_LE S24_LE S24_3LE S32_LE*
+#
+#   You DON'T want to force higher discretization
+#   on low source file, as results may end up in
+#   crackling or distorted sound
+#
+#   *Ex: T_CBTBIT=S16_LE*
+#
+T_CBTBIT=
+
+## T_FBUF: HAL FRAME BUFFER
+#
+#   The frame buffer in Audio HAL determines how many
+#   audio frames are processed in each period before the
+#   buffer is handed off to the next stage. It is important
+#   to provide a wider buffer, the heavier the source audio
+#   is (higher bitrate). Different buffer setup is critical
+#   for 2 common types of playback.
+#
+#   You can choose between:
+#   Latency   > more cpu intensive
+#             > jittery due to frequent buffer
+#               processing
+#             > risk of buffer underruns
+#             > ideal for real-time audio like
+#               live processing, voip, gaming
+#
+#   Frames    > more power efficient
+#             > smooth with fewer-to-none
+#               processing interrupts
+#             > less prone to buffer underrun
+#             > best for hi-res / high bitrate
+#               music content playback
+#
+# !          NOT ALL PIXELS SUPPORT THIS                   !
+#
+# 	Set *T_FBUF=latency* for lower latency
+# 	Set *T_FBUF=frames* for smooth fbuffer
+#   Leave untouched for default behavior
+#
+T_FBUF=
+###
+
+
+
+### EXYNOS OPTIONS ###
+
+## E_CSMPL: CODEC SAMPLING
+#
+#   Codec could take following sampling
+#   options:
+#   *44.1kHz 48kHz 88.2kHz 96kHz 176.4kHz*
+#   *192kHz*
+#
+#   *Ex: E_CSMPL=48kHz*
+#
+E_CSMPL=
+###
+
+
+
+
+#### DEBUG SECTION ####
+#
+# ! 1 > Make sure to check if any useroption flag is set -
+# it's possible that either of flags is leading to an issue.
+# Try unsetting UO flags for that matter, especially those
+# marked as buggy/unstable. Check if you put a proper value
+# for a nonbool flag.
+#
+# ! 2 > If neither useroption flag helps - go through debug
+# flags below to further determine the culprit of the issue.
+# It's IMPORTANT to check EACH debug flag, BUT ONE at a time:
+# *set flag -> reinstall SILMARIL -> reboot -> check*
+#
+# If either of flags solved the problem - report finding in
+# ainur telegram chat to add fix for certain device.
+#
+
+## D_LIBS: DISABLE LIBS EDITS
+#
+#   Setting *D_LIBS=true* will prevent SILMARIL from touching
+#   any non-sfx libraries.
+#
+D_LIBS=
+# Put advanced D_LIBS flags below when needed
+
+## D_PROPS: DISABLE PROPS EDITS
+#
+#   Setting *D_PROPS=true* will prevent SILMARIL from setting
+#   property keys.
+#
+D_PROPS=
+
+## D_MIXERS: DISABLE MIXER EDITS
+#
+#   Setting *D_MIXERS=true* will prevent SILMARIL from
+#   performing mixer edits.
+#
+D_MIXERS=
+
+# ! 3 > If neither debug flag helps resolving the issue -
+# you might want to manually navigate to SILMARIL folder
+# under installed modules at:
+# */data/adb/modules/zyx_ainur_silmaril*
+#
+# Check which files are left there, try manually removing
+# them one by one (rebooting after each removal), until
+# the culprit of the issue is found.
+# The process is tidious, but for some occasions it's the
+# only way to figure the problem out. It is possible for a
+# single component to rekt the system, even if nearly same
+# device isn't affected at all, or a different ROM didn't
+# have this bug.
+#
+# After the source of problems is found - don't forget to:
+#   > Find if a dump of your device exists over at:
+#     https://dumps.tadiphone.dev/dumps
+#     (or send a link to stock oem rom)
+#
+#   > Get adb/log while experiencing rom issues
+#
+#   > Get bootup log if you have bootloop
+#
+#   > Zip installed Silmaril module, along with
+#     logs
+#
+#   > Report findings at Ainur Telegram Chat:
+#     https://t.me/ainuraudio
+#
+# Sending information is important to add necessary fixes,
+# as well as determining the problem in general.
+#
+#    ! Messages that are not supported by !
+#       ! context/info/debug followup !
+#            ! WILL BE IGNORED !
+#
+###

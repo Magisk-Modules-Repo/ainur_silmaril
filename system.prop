@@ -1,0 +1,8 @@
+# This file will be read by resetprop
+# Example: Change dpi
+# ro.sf.lcd_density=320
+ro.af.client_heap_size_kbyte=32768
+ro.audio.max_fast_tracks=16
+audio.safemedia.bypass=true
+audio.safemedia.force=false
+af.thread.throttle=false
