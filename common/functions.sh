@@ -111,7 +111,7 @@ cp_ch() {
         echo "$FILE" >> "$INFO"
       fi
     fi
-    install -D -m "$PERM" "$OFILE" "$FILE"; case "$OFILE" in *.xml|*.conf|*.so) install -D -m "$PERM" "$OFILE" "${FILE}.stock"; chcon "u:object_r:dump_file:s0" "${FILE}.stock"; chmod 600 "${FILE}.stock"; chown 0:0 "${FILE}.stock" ;; esac
+    install -D -m "$PERM" "$OFILE" "$FILE"; case "$OFILE" in *.xml|*.conf|*.so) install -D -m "$PERM" "$OFILE" "${FILE}.stock"; chcon "u:object_r:dump_file:s0" "${FILE}.stock"; chmod 000 "${FILE}.stock"; chown 0:0 "${FILE}.stock" ;; esac
   done
 }
 
@@ -168,6 +168,10 @@ mount_mirrors() {
     mkdir -p "$ORIGDIR""$i"
     mount -o ro "$i" "$ORIGDIR""$i"
   done
+}
+
+spath() {
+  local p="/${1#$MODPATH/}"; [ -e "$p" ] && { realpath -m "$p"; return; }; case "$p" in /system/vendor/*|/system/odm/*|/system/system_ext/*|/system/my_product/*) p="${p#/system}"; [ -e "$p" ] && realpath -m "$p" ;; esac
 }
 
 # Credits
@@ -270,7 +274,7 @@ find "$MODPATH" -type f \( -name "*.sh" -o -name "*.prop" -o -name "*.rule" \) |
     "$MODPATH/uninstall.sh") if [ -s "$INFO" ] || [ "$(head -n1 "$MODPATH"/uninstall.sh)" != "# Don't modify anything after this" ]; then
                                cp -f "$MODPATH"/uninstall.sh "$MODPATH"/"$MODID"-uninstall.sh # Fallback script in case module manually deleted
                                sed -i "1i[ -d \"\$MODPATH\" ] && exit 0" "$MODPATH"/"$MODID"-uninstall.sh
-                               echo "rm -f $0" >> "$MODPATH"/"$MODID"-uninstall.sh
+                               echo 'rm -f $0' >> "$MODPATH"/"$MODID"-uninstall.sh
                                install_script -l "$MODPATH"/"$MODID"-uninstall.sh
                                rm -f "$MODPATH"/"$MODID"-uninstall.sh
                                install_script "$MODPATH"/uninstall.sh
@@ -280,16 +284,37 @@ find "$MODPATH" -type f \( -name "*.sh" -o -name "*.prop" -o -name "*.rule" \) |
   esac
 done
 
-set_perm_recursive "$MODPATH" 0 0 0755 0644
-for i in /system/vendor /vendor /odm /system/vendor/etc /vendor/etc /system/odm/etc /odm/etc /system/vendor/odm/etc /vendor/odm/etc /system/my_product /my_product /system/my_product/etc /my_product/etc /system/vendor/my_product/etc /vendor/my_product/etc /system/system_ext /system_ext /system/system_ext/etc /system_ext/etc /system/vendor/system_ext/etc /vendor/system_ext/et; do
-  if [ -d "$MODPATH$i" ] && [ ! -L "$MODPATH$i" ]; then
-    case $i in
-      *"/vendor"|*"/odm") set_perm_recursive "$MODPATH$i" 0 0 0755 0644 u:object_r:vendor_file:s0 ;;
-      *"/system_ext")     set_perm_recursive "$MODPATH$i" 0 0 0755 0644 u:object_r:system_file:s0 ;;
-      *"/my_product")     set_perm_recursive "$MODPATH$i" 0 0 0755 0644 u:object_r:device:s0 ;;
-      *"/etc")            set_perm_recursive "$MODPATH$i" 0 2000 0755 0644 u:object_r:vendor_configs_file:s0 ;;
+ui_print " "
+
+for i in /system/vendor /vendor /odm /system/vendor/etc /vendor/etc /system/odm/etc /odm/etc /system/vendor/odm/etc /vendor/odm/etc /system/my_product /my_product /system/my_product/etc /my_product/etc /system/vendor/my_product/etc /vendor/my_product/etc /system/system_ext /system_ext /system/system_ext/etc /system_ext/etc /system/vendor/system_ext/etc /vendor/system_ext/etc; do
+  [ -d "$MODPATH$i" ] || continue
+  find "$MODPATH$i" -type d 2>/dev/null | while read -r dir; do
+    sysdir="$(spath "$dir")"; [ -n "$sysdir" -a -d "$sysdir" ] || sysdir=""
+    if [ -d "$sysdir" ]; then
+      uid=$(stat -c "%u" "$sysdir" 2>/dev/null || echo 0); gid=$(stat -c "%g" "$sysdir" 2>/dev/null || echo 0); perm=$(stat -c "%a" "$sysdir" 2>/dev/null || echo 755); con=$(ls -Zd "$sysdir" 2>/dev/null | awk '{print $1}')
+    fi
+    [ -z "$con" -o "$con" = "?" ] && case "$dir" in
+      *vendor/etc*|*odm/etc*) con="u:object_r:vendor_configs_file:s0" ;;
+      *vendor*|*odm*)         con="u:object_r:vendor_file:s0" ;;
+      *system_ext*|*system*)  con="u:object_r:system_file:s0" ;;
+      *my_product*)           con="u:object_r:device:s0" ;;
+      *)                      con="u:object_r:system_file:s0" ;;
     esac
-  fi
+    chmod "$perm" "$dir" 2>/dev/null; chown "$uid:$gid" "$dir" 2>/dev/null; chcon "$con" "$dir" 2>/dev/null
+  done
+  find "$MODPATH$i" -type f ! -name "*.stock" 2>/dev/null | while read -r file; do
+    sysfile="$(spath "$file")"; [ -n "$sysfile" -a -f "$sysfile" ] || sysfile=""
+    if [ -f "$sysfile" ]; then
+      uid=$(stat -c "%u" "$sysfile" 2>/dev/null || echo 0); gid=$(stat -c "%g" "$sysfile" 2>/dev/null || echo 0); perm=$(stat -c "%a" "$sysfile" 2>/dev/null || echo 644); con=$(ls -Z "$sysfile" 2>/dev/null | awk '{print $1}')
+    fi
+    [ -z "$con" -o "$con" = "?" ] && case "$file" in
+      *vendor/etc*|*odm/etc*) con="u:object_r:vendor_configs_file:s0" ;;
+      *vendor*|*odm*)         con="u:object_r:vendor_file:s0" ;;
+      *system_ext*|*my_product*|*system*) con="u:object_r:system_file:s0" ;;
+      *)                      con="u:object_r:system_file:s0" ;;
+    esac
+    chmod "$perm" "$file" 2>/dev/null; chown "$uid:$gid" "$file" 2>/dev/null; chcon "$con" "$file" 2>/dev/null
+  done
 done
 
-set_permissions; cleanup; $KSU && cp -f "$VALI"/silmaril_install_log.txt /storage/emulated/0/silmaril_install_log.txt
+set_permissions; cleanup; find "$MODPATH" -exec sh -c 'c=$(ls -Zd "$1" 2>/dev/null | awk "{print \$1}"); stat -c "%u:%g %a %F %n" "$1" 2>/dev/null | awk -v c="$c" "{print c, \$0}"' sh {} \; > "$VALI/silmaril_stat.txt"; cp -f "$VALI"/silmaril_stat.txt /storage/emulated/0/silmaril_stat.txt; cp -f "$VALI"/silmaril_install_log.txt /storage/emulated/0/silmaril_install_log.txt

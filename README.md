@@ -18,12 +18,12 @@
 
 
 ## Installation
-* Flash module with `Magisk/KernelSU/APatch` app (with ever growing number of forks, some might not work correctly)
+* Flash module with `Magisk(Delta/Kitsune)/KernelSU/KernelSUNext/APatch/SukiSU` app. With ever growing number of forks and frequent changes to core logic - some root solutions might not work correctly.
 * Initial install will place `UserOptions` file to `internal storage`. To experiment with extra options open `silmaril_useroptions` as text and follow instructions on what flags supposed to do and which values used. :exclamation: Reinstalling the module is vital for changes to take any effect. It is advised to uninstall & reinstall module, instead of flashing it over for some cases.
 
 
 ## Troubleshooting
-In case experiencing any bugs - navigate to the bottom of `UserOptions` file, where `Debug Section` can be found. Follow its instructions to resolve the issue.
+In case experiencing any bugs - navigate to `UserOptions`'s `[Debug Section](https://github.com/Magisk-Modules-Repo/ainur_silmaril/blob/master/silmaril_useroptions#L753)` can be found. Follow its instructions to resolve the issue.
 
 
 ## Get in touch

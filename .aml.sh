@@ -11,7 +11,7 @@ alias tinymix="$VALI/tools/arm64/tinymix"
 alias xmlstarlet="$VALI/tools/arm64/xmlstarlet"
 
 MODID=<MODID>
-PARTITIONS="/system /vendor /odm /my_product"
+PARTITIONS="/system /vendor /odm /system_ext"
 
 #ui_print() { :; } # Do not need to actually print during aml
 abort() { :; } # Keep going
@@ -74,3 +74,5 @@ cp_ch() {
 . "$mod"/files/nauglamir.sh
 
 MODPATH=$AMLMODPATH
+
+cp -f "$VALI"/silmaril_aml_install_log.txt /storage/emulated/0/silmaril_aml_install_log.txt

@@ -1,6 +1,6 @@
 # AINUR SILMARIL
 # UserOptions (UO)
-UVER=82
+UVER=83
 
 #### INSTRUCTIONS ####
 #
@@ -183,7 +183,7 @@ U_APFF=
 #   more frames. These frames have to be buffered correctly
 #   to avoid any underruns, which is the reason for deepbuffer
 #   to exist. It provides enough memory for all chunks without
-#   any need to constantly processing them on the go. When
+#   any need for constant processing them on the go. When
 #   deepbuffer is removed - the system is likely to fallback
 #   to either of ll threads. Which might result in buffer underrun,
 #   and definitely in wasted processing/battery resources.
@@ -469,8 +469,8 @@ Q_BTCSMPL=
 #   MBDRC has its downsides. Uneven frequency response -
 #   where some frequency bands may be over while others
 #   are under-compressed, which leads to tonal balance
-#   shift. Clipping artifacts. Loss of contrast between
-#   loud and quiet parts, due to over-compression. Phase
+#   shift, clipping artifacts, loss of contrast between
+#   loud and quiet parts, due to over-compression, phase
 # 	shifting distortion when certain frequencies cancel
 # 	each other out or sound unnatural.
 #
@@ -487,9 +487,8 @@ Q_MBDRC=
 #   The frame buffer in Audio HAL determines how many
 #   audio frames are processed in each period before the
 #   buffer is handed off to the next stage. It is important
-#   to provide a wider buffer, the heavier the source audio
-#   is (higher bitrate). Different buffer setup is critical
-#   for 2 common types of playback.
+#   to provide a wider buffer, the heavier (higher bitrate)
+#   the source audio is.
 #
 #   You can choose between:
 #   Latency   > more cpu intensive
@@ -703,9 +702,8 @@ T_CBTBIT=
 #   The frame buffer in Audio HAL determines how many
 #   audio frames are processed in each period before the
 #   buffer is handed off to the next stage. It is important
-#   to provide a wider buffer, the heavier the source audio
-#   is (higher bitrate). Different buffer setup is critical
-#   for 2 common types of playback.
+#   to provide a wider buffer, the heavier (higher bitrate)
+#   the source audio is.
 #
 #   You can choose between:
 #   Latency   > more cpu intensive
@@ -773,6 +771,7 @@ E_CSMPL=
 #   any non-sfx libraries.
 #
 D_LIBS=
+#
 # Put advanced D_LIBS flags below when needed
 
 ## D_PROPS: DISABLE PROPS EDITS

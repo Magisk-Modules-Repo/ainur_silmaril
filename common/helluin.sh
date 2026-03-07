@@ -20,7 +20,7 @@ for OFILE in ${POLS}; do
       awk -v c="$C" '/<mixPort name="hifi_(playback|output)" role="source"/ {if($0~/flags="/) {if($0!~/AUDIO_OUTPUT_FLAG_BIT_PERFECT/) sub(/flags="/, "flags=\"AUDIO_OUTPUT_FLAG_BIT_PERFECT"c)} else sub(/\/>$/, " flags=\"AUDIO_OUTPUT_FLAG_BIT_PERFECT\"/>")} 1' "$FILE" > temp && mv temp "$FILE"
     fi
     for device in "Aux Line" "Wired Headset" "Wired Headphones" "Line" "HDMI" "USB Device Out" "USB Headset Out"; do
-      awk -v device="$device" 'BEGIN { inside_devicePort = 0 } /<devicePort tagName="/ { if ($0 ~ "tagName=\"" device "\"") inside_devicePort = 1; print; next } /<\/devicePort>/ { inside_devicePort = 0; print; next } inside_devicePort && /<profile/ { print "<!--"; print; next } inside_devicePort && /\/>/ { print; print "-->"; next } { print }' "$FILE" > tmp && mv tmp "$FILE"
+      awk -v device="$device" 'BEGIN{idp=0;ic=0} /<!--/{ic=1} /-->/ {print;ic=0;next} ic{print;next} /<devicePort tagName="/{if($0~"tagName=\""device"\"")idp=1;print;next} /<\/devicePort>/{idp=0;print;next} idp&&/<profile/{print "<!--";print;next} idp&&/\/>/{print;print "-->";next} {print}' "$FILE" > tmp && mv tmp "$FILE"
       if [ -z "$U_APFF" ] || [ "$U_APFF" == "add" ]; then
         for format in "AUDIO_FORMAT_PCM_8_BIT" "AUDIO_FORMAT_PCM_16_BIT" "AUDIO_FORMAT_PCM_24_BIT_PACKED" "AUDIO_FORMAT_PCM_8_24_BIT" "AUDIO_FORMAT_PCM_32_BIT"; do
           if strings "$APMD64" 2>/dev/null | grep -q "$format"; then
@@ -32,7 +32,7 @@ for OFILE in ${POLS}; do
     unset device format
     mpnames="fast|raw|direct|direct_pcm"; [ -z "$U_APDBR" ] && { mp2="$mpnames|$dbp"; mp2=$(echo "$mp2" | sed 's/||*/|/g; s/^|//; s/|$//'); } || mp2="$mpnames"
     while IFS= read -r name; do
-      awk -v name="$name" 'BEGIN {inside_mixPort=0} /<mixPort name="/ {if($0~"name=\""name"\"") inside_mixPort=1; print; next} /<\/mixPort>/ {inside_mixPort=0; print; next} inside_mixPort&&/<profile/ {print "<!--"; print; next} inside_mixPort&&/\/>/ {print; print "-->"; next} {print}' "$FILE" > tmp && mv tmp "$FILE"
+      awk -v name="$name" 'BEGIN{im=0;ic=0} /<!--/{ic=1} /-->/ {print;ic=0;next} ic{print;next} /<mixPort name="/{if($0~"name=\""name"\"")im=1;print;next} /<\/mixPort>/{im=0;print;next} im&&/<profile/{print "<!--";print;next} im&&/\/>/{print;print "-->";next} {print}' "$FILE" > tmp && mv tmp "$FILE"
       if [ -z "$U_APFF" ] || [ "$U_APFF" == "add" ]; then
         for format in "AUDIO_FORMAT_PCM_8_BIT" "AUDIO_FORMAT_PCM_16_BIT" "AUDIO_FORMAT_PCM_24_BIT_PACKED" "AUDIO_FORMAT_PCM_8_24_BIT" "AUDIO_FORMAT_PCM_32_BIT"; do
           if strings "$APMD" 2>/dev/null | grep -q "$format" || strings "$APMD64" 2>/dev/null | grep -q "$format"; then

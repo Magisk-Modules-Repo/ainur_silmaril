@@ -42,8 +42,6 @@ REPLACE="
 
 set_permissions() {
   [ -d "$MODPATH/system/bin" ] && set_perm_recursive "$MODPATH"/system/bin 0 2000 0755 0755; set_perm_recursive "$VALI"/tools/arm64 0 0 0755 0755
-  #set_perm_recursive "$MODPATH"/tools 0 0 0755 0755
-  #[ -n "$T_AOC" ] && chown $(stat -c '%U:%G' /vendor/bin/hw/android.hardware.audio.service-aidl.aoc) "$MODPATH"/vendor/bin/hw/android.hardware.audio.service-aidl.aoc && chmod $(stat -c '%a' /vendor/bin/hw/android.hardware.audio.service-aidl.aoc) "$MODPATH"/vendor/bin/hw/android.hardware.audio.service-aidl.aoc && chcon $(ls -Z /vendor/bin/hw/android.hardware.audio.service-aidl.aoc | awk '{print $1}') "$MODPATH"/vendor/bin/hw/android.hardware.audio.service-aidl.aoc
   # Note that all files/folders in magisk module directory have the $MODPATH prefix - keep this prefix on all of your files/folders
   # Some examples:
   

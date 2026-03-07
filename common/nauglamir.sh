@@ -48,11 +48,13 @@ rpath() {
 format_file() {
     expand -t 2 "$1" > "$1.tmp" && mv -f "$1.tmp" "$1"
 }
-nest() {
-  OFILE="$1"
-  FILE="${MODPATH%/}$(echo "$OFILE" | rpath -f -x "/my_product")"
+detect_root() {
+  [ -n "$KSU" ] && [ -n "$KSU_NEXT" ] && ROOT_MODE=KSUN && return 0; [ -n "$KSU" ] && [ -z "$KSU_NEXT" ] && ROOT_MODE=KSU && return 0; [ -n "$(find /data/app/ -type f -name "libzako*.so")" ] && SUSFS=true && ROOT_MODE=KSU && return 0; [ -d /data/adb/magisk ] && { ROOT_MODE=MAG; [ "$(echo "$MAGISK_VER" | awk -F- '{print $NF}')" = "kitsune" ] && ROOT_MODE=MAG_K && return 0; [ "$(echo "$MAGISK_VER" | awk -F- '{print $NF}')" = "delta" ] && ROOT_MODE=MAG_D && return 0; }
 }
-$KSU_NEXT && ROOT_MODE=KSUN; $KSU && ROOT_MODE=KSU; [ -n "$(find /data/app/ -type f -name "libzako*.so")" ] && SUSFS=true && ROOT_MODE=KSU; [ -d /data/adb/magisk ] && { ROOT_MODE=MAG; [ "$(echo "$MAGISK_VER" | awk -F- '{print $NF}')" = "kitsune" ] && ROOT_MODE=MAG_K; [ "$(echo "$MAGISK_VER" | awk -F- '{print $NF}')" = "delta" ] && ROOT_MODE=MAG_D; }; perf; renice -n -15 -p $$; ionice -c 1 -n 0 -p $$; trap nerf EXIT
+nest() {
+  OFILE="$1"; FILE="${MODPATH%/}$(echo "$OFILE" | rpath -f -x "/my_product")"
+}
+detect_root; perf; renice -n -15 -p $$; ionice -c 1 -n 0 -p $$; trap nerf EXIT
 soc_ven() {
   local name print_name lib_patterns
   local vendors=$'MTK:Mediatek:vendor.mediatek*.so\nQCP:Qualcomm:vendor.qti*.so|com.qualcomm*.so\nEXY:Exynos:libExynos*.so\nTENZ:Tensor:gxp*.so|audio.primary.gs*.so|aoc_*.so'
@@ -414,7 +416,7 @@ patch_xml() {
     "-d") xmlstarlet ed -L -d "$3" "$2" ;;
     "-u") xmlstarlet ed -L -u "$3/@$VALC" -v "$VAL" "$2" ;;
     "-s") 
-      if xmlstarlet sel -t -m "$3" -c . "$2" > /dev/null 2>&1; then
+      if [ "$(xmlstarlet sel -t -m "$3" -c . "$2")" ]; then
           xmlstarlet ed -L -u "$3/@$VALC" -v "$VAL" "$2"
       else
         SNP="$(echo "$3" | awk '{ sub(/\[@[^=]+="[^"]*"\]$/, "", $0); print }')"; NP="$(dirname "$SNP")"; SN="$(basename "$SNP")"; xmlstarlet ed -L -s "$NP" -t elem -n "$SN-$MODID" -i "$SNP-$MODID" -t attr -n "$NAMEC" -v "$NAME" -i "$SNP-$MODID" -t attr -n "$VALC" -v "$VAL" -r "$SNP-$MODID" -v "$SN" "$2"
@@ -445,7 +447,7 @@ if [ -d "$NVBASE"/modules/ainur_sauron ]; then
 elif [ -d "$NVBASE"/modules/ainur_narsil ]; then
   ui_print " "; ui_print "! AINUR NARSIL detected!"; abort "! Uninstall Narsil first!"
 fi
-V20="$(grep "ro.product.device=elsa" "$BUILDS")"; V30="$(grep "ro.product.device=joan" "$BUILDS")"; G6="$(grep "ro.product.device=lucye" "$BUILDS")"; G7="$(grep "ro.product.device=judyln" "$BUILDS")"; rog5="$(grep -E "ro.product.vendor.model=ASUS_I005.*" "$BUILDS")"; AUO=/storage/emulated/0/silmaril_useroptions; VETC=/system/vendor/etc; CFGS="$(find $(pfind "etc") -maxdepth 3 -type f \( -name "*audio_effects*.conf" -o -name "*audio_effects*.xml" \) ! -name "audio_effects_haptic.xml"  2>/dev/null)"; POLS="$(find $(pfind "etc") -maxdepth 3 -type f -name "*audio_*policy*.xml" ! -name "*volumes*" ! -name "*engine*" ! -name "*r_submix*" ! -name "*a2dp_in*" 2>/dev/null)"; MIXS="$(find $(pfind "etc") -maxdepth 3 -type f -name "mixer_paths*.xml" 2>/dev/null)"; MIXNUM="$(echo "$MIXS" | wc -w)"; APMD="$(find /system/lib /vendor/lib -maxdepth 1 -type f -name "libaudiopolicymanagerdefault.so")"; APMD64="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "libaudiopolicymanagerdefault.so")"; APED="$(find /system/lib /vendor/lib -maxdepth 1 -type f -name "libaudiopolicyenginedefault.so")"; APED64="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "libaudiopolicyenginedefault.so")"; AFLN="$(find /system/lib -maxdepth 1 -type f -name "libaudioflinger.so")"; AFLN64="$(find /system/lib64 -maxdepth 1 -type f -name "libaudioflinger.so")"
+V20="$(grep "ro.product.device=elsa" "$BUILDS")"; V30="$(grep "ro.product.device=joan" "$BUILDS")"; G6="$(grep "ro.product.device=lucye" "$BUILDS")"; G7="$(grep "ro.product.device=judyln" "$BUILDS")"; rog5="$(grep -E "ro.product.vendor.model=ASUS_I005.*" "$BUILDS")"; WAVL="$(pm list packages | grep "com.pittvandewitt.wavelet")"; AUO=/storage/emulated/0/silmaril_useroptions; VETC=/system/vendor/etc; CFGS="$(find $(pfind "etc") -maxdepth 3 -type f \( -name "*audio_effects*.conf" -o -name "*audio_effects*.xml" \) ! -name "audio_effects_haptic.xml"  2>/dev/null)"; POLS="$(find $(pfind "etc") -maxdepth 3 -type f -name "*audio_*policy*.xml" ! -name "*volumes*" ! -name "*engine*" ! -name "*r_submix*" ! -name "*a2dp_in*" 2>/dev/null)"; MIXS="$(find $(pfind "etc") -maxdepth 3 -type f -name "mixer_paths*.xml" 2>/dev/null)"; MIXNUM="$(echo "$MIXS" | wc -w)"; APMD="$(find /system/lib /vendor/lib -maxdepth 1 -type f -name "libaudiopolicymanagerdefault.so")"; APMD64="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "libaudiopolicymanagerdefault.so")"; APED="$(find /system/lib /vendor/lib -maxdepth 1 -type f -name "libaudiopolicyenginedefault.so")"; APED64="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "libaudiopolicyenginedefault.so")"; AFLN="$(find /system/lib -maxdepth 1 -type f -name "libaudioflinger.so")"; AFLN64="$(find /system/lib64 -maxdepth 1 -type f -name "libaudioflinger.so")"
 if ! $AML; then
   DVT="$(find $(pfind "etc") -maxdepth 3 -type f \( -name "default_volume_tables*.xml" -o -name "audio_policy_volumes*.xml" -o -name "audio_policy_engine_default_stream_volumes*.xml" -o -name "audio_policy_engine_stream_volumes*.xml" \) 2>/dev/null)"; ASERV="$(find /system/bin /vendor/bin -maxdepth 2 -type f \( -name "audioserver" -o -name "android.hardware.audio.service" -o -name "android.hardware.audio.service_64" -o -name "audiohalservice_qti" -o -name "android.hardware.audio.service-aidl.aoc" \) 2>/dev/null | sed 's|.*/||')"; ASERVRC="$(find $(pfind "etc/init") -type f \( -name "audioserver*.rc" -o -name "android.hardware.audio.service*.rc" -o -name "audiohalservice_qti.rc" -o -name "init.qcom.rc" \) 2>/dev/null)"; [ -n "$QCP" ] && [ -f "/vendor/bin/hw/audiohalservice.qti" ] && cat /proc/"$(pidof audiohalservice.qti)"/maps > "$VALI"/qhalservice.txt; cat /proc/"$(pidof audioserver)"/maps > "$VALI"/aserver.txt; A_PROCARCH="$(grep libaudioprocessing.so "$VALI"/aserver.txt | head -n1 | awk '{ if ($6 ~ /lib64/) { print "64" } else if ($6 ~ /lib/) { print "32" } }')"; A_FLINARCH="$(grep libaudioflinger.so "$VALI"/aserver.txt | head -n1 | awk '{ if ($6 ~ /lib64/) { print "64" } else if ($6 ~ /lib/) { print "32" } }')"; A_SPXARCH="$(grep libspeexresampler.so "$VALI"/aserver.txt | head -n1 | awk '{ if ($6 ~ /lib64/) { print "64" } else if ($6 ~ /lib/) { print "32" } }')"
   for serv in android.hardware.audio.service android.hardware.audio.service_64 android.hardware.audio.service-aidl.aoc; do
@@ -778,7 +780,7 @@ if ! $AML; then
     fi
     if [ -n "$BEC" ]; then
       if [ -n "$Q_CBIT_PROCEED" ] || [ -n "$Q_CSMPL_PROCEED" ] || [ -n "$Q_CSMPL_PROCEED" ]; then
-        ui_print " "; ui_print " - Patching AGM device interface"
+        ui_print " "; ui_print " - Patching ARE AGM device interface"
         for OFILE in ${BEC}; do
           nest "$OFILE"; cp_ch "$ORIGDIR""$OFILE" "$FILE"; format_file "$FILE"
           case $Q_CBIT in "S32_LE") BEC_QB=32 BEC_FMT=PCM_FORMAT_S32_LE ;; "S24_3LE") BEC_QB=24 BEC_FMT=PCM_FORMAT_S24_3LE ;; "S24_LE") BEC_QB=24 BEC_FMT=PCM_FORMAT_S24_LE ;; "S16_LE") BEC_QB=16 BEC_FMT=PCM_FORMAT_S16_LE ;; esac
@@ -843,8 +845,7 @@ if ! $AML; then
       fi
     fi
     if [ -n "$KVH" ]; then
-      ui_print " "; ui_print " - Patching AGM KV interface"
-
+      ui_print " "; ui_print " - Patching ARE AGM KV interface"
       for OFILE in ${KVH}; do
         nest "$OFILE"; cp_ch "$ORIGDIR""$OFILE" "$FILE"; format_file "$FILE"
         for name in "DataLogging" "Equalizer" "Asphere" "Virtualizer_Switch" "Reverb_Switch" "PBE_Switch" "BASS_BOOST_Switch" "MISOUND_HPH_EQ_ENABLE" "MISOUND_HPH_MUSICMODE_ENABLE" "MISOUND_HPH_MODULE_SWITCH" "MISOUND_HPH_SWITCH" "MISOUND_HPH_EARCOMP_ENABLE"; do
@@ -884,8 +885,7 @@ if ! $AML; then
     if [ -n "$TPC" ]; then
       for OFILE in ${TPC}; do
         nest "$OFILE"; cp_ch "$ORIGDIR""$OFILE" "$FILE"; format_file "$FILE"
-        case $T_CSMPL in "SR_176P4K") MIX_RS=176400 ;; "SR_192K") MIX_RS=192000 ;; *) MIX_RS=96000 ;; esac
-        sed -i "s/MaxSamplingRate=.*/MaxSamplingRate=$MIX_RS/" "$FILE"
+        case $T_CSMPL in "SR_176P4K") MIX_RS=176400 ;; "SR_192K") MIX_RS=192000 ;; *) MIX_RS=96000 ;; esac; sed -i "s/MaxSamplingRate=.*/MaxSamplingRate=$MIX_RS/" "$FILE"
       done
       purge
     fi
@@ -896,7 +896,7 @@ if ! $AML; then
       for OFILE in ${MPLAT}; do
         nest "$OFILE"; cp_ch "$ORIGDIR""$OFILE" "$FILE"; format_file "$FILE"
         sed -i 's/<Option>0x99, 1<\/Option>/<Option>0x99, 0<\/Option>/g' "$FILE"
-        for name in 0x90 0x91 0xae; do
+        for name in 0x90 0xae; do
           sed -i "/<SetAudioCommand>/,/<\/SetAudioCommand>/s/\(<SetAudioCommand>\)/\1\n        <Option>\"$name\", 1<\/Option>/" "$FILE"
         done
         sed -i '/<SetParameters>/,/<\/SetParameters>/s/<\/SetParameters>/\1\n        <Option>SetHiFiDACStatus=1<\/Option>/' "$FILE"; sed -i '/<GetParameters>/,/<\/GetParameters>/s/<\/GetParameters>/\1\n        <Option>GetHiFiDACStatus<\/Option>/' "$FILE"

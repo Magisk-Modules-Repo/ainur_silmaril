@@ -1,6 +1,6 @@
 ##########################################################################################
 if [ -n "$QCP" ]; then
-  ! $AML && { ui_print " "; ui_print " - Patching mixers"; [ "$MIXNUM" -ge 5 ] && ui_print "   $MIXNUM found, be patient"; ui_print "   patching might take a while"; }
+  ! $AML && { ui_print " "; ui_print " - Patching mixers"; [ "$MIXNUM" -ge 5 ] && ui_print "   $MIXNUM found, be patient, patching might take a while"; }
   for OFILE in ${MIXS}; do
     nest "$OFILE"; cp_ch "$ORIGDIR""$OFILE" "$FILE"
     full="$(grep -E -o 'headphones(-(and-haptics|generic|dsd|44\.1|advanced|aux|advanced-44\.1|aux-44\.1|ce|no-ce|44\.1-ce|hifi-filter))?|headphone(-(dsd|generic))?|anc-(off-)?headphones|asrc-mode|true-native-mode' "$FILE" | sort -u)"; grep -q "SLIM_0_RX XTLoggingDisable" "$TMD" && patch_xml -s "$FILE" '/mixer/ctl[@name="SLIM_0_RX XTLoggingDisable"]' "TRUE"; grep -q "HiFi Function" "$TMD" && patch_xml -s "$FILE" '/mixer/ctl[@name="HiFi Function"]' "On"; grep -q "HiFi Filter" "$FILE" && patch_xml -u "$FILE" '/mixer/ctl[@name="HiFi Filter"]' "0"
@@ -37,22 +37,6 @@ if [ -n "$QCP" ]; then
   done
   purge
   MIXS_NESTED="$(find "$MODPATH" -type f -name "mixer_paths*.xml")"
-  for FILE in ${MIXS_NESTED}; do
-    if [ "$FILE" != "mixer_paths_overlay_dynamic.xml" ] && [ "$FILE" != "mixer_paths_overlay_static.xml" ]; then
-      if grep -q '<path name="line">' "$FILE"; then
-        names="$(grep -E -o 'headphone(s(-generic)?|(-generic)?)' "$FILE" | sort -u)"
-        for panam in ${names}; do
-          sed -i "/<path name=\"$panam\">/a \ \ \ \ \ <path name=\"line\" />" "$FILE"
-        done
-        unset names
-        sed -i '\#<path name="line">#,\#</path>#s#<path name="headphones"/>#<!-- <path name="headphones" /> -->#' "$FILE"
-        if strings "$PHAL64" 2>/dev/null | grep -q "hph-class-ab-mode" && ! grep -q "hph-class-ab-mode" "$FILE"; then
-          sed -i '/<path name="line">/i\<path name="hph-class-ab-mode">\n\ \ </path>' "$FILE"
-        fi
-      fi
-    fi
-  done
-  purge
   for FILE in ${MIXS_NESTED}; do
     if grep -q 'LINEOUT1 Volume' "$TMD"; then
       MLGA="$(tinymix get 'LINEOUT1 Volume' 2>/dev/null | awk -F'[>)]' '{print $2}')"
@@ -213,7 +197,7 @@ if [ -n "$QCP" ]; then
         done
         unset names
       fi
-      names="$(grep -E -o 'asrc-mode|headphone|headphones(-dsd|-44.1|-ce|-44.1-ce|-no-ce)|true-native-mode|hph-[^ ]*-mode' "$FILE" | sort -u)"; hph="$(tinymix get 'RX HPH Mode' 2>/dev/null | sed 's/> //g' | sed 's/,//g')"
+      names="$(grep -E -o 'asrc-mode|headphones(-(generic|dsd|44\.1|advanced|aux|advanced-44\.1|aux-44\.1|ce|no-ce|44\.1-ce|hifi-filter))?|headphone(-(dsd|generic))?|true-native-mode|hph-[^ ]*-mode' "$FILE" | sort -u)"; hph="$(tinymix get 'RX HPH Mode' 2>/dev/null | sed 's/> //g' | sed 's/,//g')"
       if [ -n "$hph" ]; then
         if echo "$hph" | grep -q 'CLS_AB_HIFI'; then hphmode="CLS_AB_HIFI"; elif echo "$hph" | grep -q 'CLS_AB'; then hphmode="CLS_AB"; elif echo "$hph" | grep -q 'CLS_H_HIFI'; then hphmode="CLS_H_HIFI"; fi
         if [ -n "$hphmode" ]; then
@@ -279,31 +263,33 @@ if [ -n "$QCP" ]; then
           done
           [ -n "$SLIM_H" ] && awk -v iir="$IIR" -v iir2="$IIR2" 'BEGIN{indent1="  ";indent2="    ";block=indent1"<path name=\"silmaril\">";for(b=1;b<=5;b++)for(i=0;i<=4;i++){value=(i==0)?"268435456":"0";block=block"\n"indent2"<ctl name=\""iir" Band"b"\" id=\""i"\" value=\""value"\"/>\n"indent2"<ctl name=\""iir2" Band"b"\" id=\""i"\" value=\""value"\"/>"}block=block"\n"indent1"</path>"}$0~/<path name="sidetone-iir">/{print block"\n"$0;next}{print}' "$FILE" > tmp && mv tmp "$FILE"
         fi
-        if grep -q 'RX_MACRO RX[0-9] MUX' "$FILE"; then
-          for panam in ${names}; do
-            rx_values="$(awk -v name="$panam" '$0 ~ "<path name=\"" name "\">" , $0 ~ "</path>" { if ($0 ~ /RX_MACRO RX[0-9] MUX/) { match($0, /RX[0-9]/); if (RLENGTH > 0) { print substr($0, RSTART, RLENGTH) } } }' "$FILE")"; rx1="$(echo "$rx_values" | awk 'NR==1')"; rx2="$(echo "$rx_values" | awk 'NR==2')"
-            eval "$(awk -v panam="$panam" '/<path name="'"$panam"'">/,/<\/path>/ { if (/<ctl name="RX INT0_2 MUX".*\/>/) { print "MIX=INT0_1\nMIX2=INT1_1\nMUX=INT0_2\nMUX2=INT1_2"; next } if (/<ctl name="RX INT0_1 MIX1 INP0".*\/>/) { print "MIX=INT0_1\nMIX2=INT1_1\nMUX=INT1_2\nMUX2=INT2_2"; next } if (/<ctl name="RX INT2_2 MUX".*\/>/) { print "MIX=INT1_1\nMIX2=INT2_1\nMUX=INT1_2\nMUX2=INT2_2"; next } if (/<ctl name="RX INT2_1 MIX1 INP0".*\/>/) { print "MIX=INT1_1\nMIX2=INT2_1\nMUX=INT1_2\nMUX2=INT2_2"; next } }' "$FILE")"
-            if { [ -n "$rx1" ] && [ -n "$rx2" ]; } && { [ -n "$MIX" ] && [ -n "$MIX2" ]; } && { [ -n "$MUX" ] && [ -n "$MUX2" ]; }; then
-              IIRVOL=$( [ -n "$Q_HDGA_PROCEED" ] && echo "$Q_HDGA" || echo 84 )
-              for iirnum in IIR0 IIR1; do for num in 1 2 3 4 5; do patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"$iirnum Enable Band$num\"]" "1"; done; done
-              patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR0 INP0 MUX\"]" "$rx1"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR1 INP0 MUX\"]" "$rx2"; patch_xml -u "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"RX $MUX MUX\"]" "ZERO"; patch_xml -u "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"RX $MUX2 MUX\"]" "ZERO"; patch_xml -u "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"RX $MIX MIX1 INP0\"]" "IIR0"; patch_xml -u "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"RX $MIX2 MIX1 INP0\"]" "IIR1"
-              grep -q "RX $MIX INTERP" "$TMD" && grep -q "RX $MIX2 INTERP" "$TMD" && { patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"RX $MIX INTERP\"]" "RX $MIX MIX1"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"RX $MIX2 INTERP\"]" "RX $MIX2 MIX1"; }
-              patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR0 INP0 Volume\"]" "$IIRVOL"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR1 INP0 Volume\"]" "$IIRVOL"
-              grep -q 'IIR0 INP1 MUX' "$TMD" && { patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR0 INP1 MUX\"]" "$rx1"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR1 INP1 MUX\"]" "$rx2"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"RX $MIX MIX1 INP1\"]" "IIR0"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"RX $MIX2 MIX1 INP1\"]" "IIR1"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR0 INP1 Volume\"]" "$IIRVOL"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR1 INP1 Volume\"]" "$IIRVOL"; }
-              grep -q 'IIR0 INP2 MUX' "$TMD" && { patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR0 INP2 MUX\"]" "$rx1"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR1 INP2 MUX\"]" "$rx2"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"RX $MIX MIX1 INP2\"]" "IIR0"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"RX $MIX2 MIX1 INP2\"]" "IIR1"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR0 INP2 Volume\"]" "$IIRVOL"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR1 INP2 Volume\"]" "$IIRVOL"; }
-              grep -q 'IIR0 INP3 MUX' "$TMD" && { patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR0 INP3 MUX\"]" "$rx1"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR1 INP3 MUX\"]" "$rx2"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR0 INP3 Volume\"]" "$IIRVOL"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR1 INP3 Volume\"]" "$IIRVOL"; }
-              MACRO_H=1
-            fi
-          done
-          [ -n "$MACRO_H" ] && awk -F'"' '/ctl name="IIR0 Band1" id="0" value="268435456"/||/ctl name="IIR0 Band1" id="1" value="0"/{f=1}/ctl name="IIR0 Band1" value="00 00 00 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"/{f=2}BEGIN{i1="  ";i2="    "}f==1&&$0~/<path name="sidetone-iir">/{b=i1"<path name=\"silmaril\">";for(n=1;n<=5;n++)for(i=0;i<=4;i++){v=(i==0)?"268435456":"0";b=b"\n"i2"<ctl name=\"IIR0 Band"n"\" id=\""i"\" value=\""v"\"/>\n"i2"<ctl name=\"IIR1 Band"n"\" id=\""i"\" value=\""v"\"/>"}b=b"\n"i1"</path>";print b"\n"$0;next}f==2&&$0~/<path name="sidetone-iir">/{b=i1"<path name=\"silmaril\">";for(n=1;n<=5;n++){b=b"\n"i2"<ctl name=\"IIR0 Band"n"\" value=\"00 00 00 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\" />\n"i2"<ctl name=\"IIR1 Band"n"\" value=\"00 00 00 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\" />"}b=b"\n"i1"</path>";print b"\n"$0;next}{print}' "$FILE" > tmp && mv tmp "$FILE"
+        if ! grep -q "CPH2581" "$BUILDS"; then
+          if grep -q 'RX_MACRO RX[0-9] MUX' "$FILE"; then
+            for panam in ${names}; do
+              rx_values="$(awk -v name="$panam" '$0 ~ "<path name=\"" name "\">" , $0 ~ "</path>" { if ($0 ~ /RX_MACRO RX[0-9] MUX/) { match($0, /RX[0-9]/); if (RLENGTH > 0) { print substr($0, RSTART, RLENGTH) } } }' "$FILE")"; rx1="$(echo "$rx_values" | awk 'NR==1')"; rx2="$(echo "$rx_values" | awk 'NR==2')"
+              eval "$(awk -v panam="$panam" '/<path name="'"$panam"'">/,/<\/path>/ { if (/<ctl name="RX INT0_2 MUX".*\/>/) { print "MIX=INT0_1\nMIX2=INT1_1\nMUX=INT0_2\nMUX2=INT1_2"; next } if (/<ctl name="RX INT0_1 MIX1 INP0".*\/>/) { print "MIX=INT0_1\nMIX2=INT1_1\nMUX=INT1_2\nMUX2=INT2_2"; next } if (/<ctl name="RX INT2_2 MUX".*\/>/) { print "MIX=INT1_1\nMIX2=INT2_1\nMUX=INT1_2\nMUX2=INT2_2"; next } if (/<ctl name="RX INT2_1 MIX1 INP0".*\/>/) { print "MIX=INT1_1\nMIX2=INT2_1\nMUX=INT1_2\nMUX2=INT2_2"; next } }' "$FILE")"
+              if { [ -n "$rx1" ] && [ -n "$rx2" ]; } && { [ -n "$MIX" ] && [ -n "$MIX2" ]; } && { [ -n "$MUX" ] && [ -n "$MUX2" ]; }; then
+                IIRVOL=$( [ -n "$Q_HDGA_PROCEED" ] && echo "$Q_HDGA" || echo 84 )
+                for iirnum in IIR0 IIR1; do for num in 1 2 3 4 5; do patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"$iirnum Enable Band$num\"]" "1"; done; done
+                patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR0 INP0 MUX\"]" "$rx1"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR1 INP0 MUX\"]" "$rx2"; patch_xml -u "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"RX $MUX MUX\"]" "ZERO"; patch_xml -u "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"RX $MUX2 MUX\"]" "ZERO"; patch_xml -u "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"RX $MIX MIX1 INP0\"]" "IIR0"; patch_xml -u "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"RX $MIX2 MIX1 INP0\"]" "IIR1"
+                grep -q "RX $MIX INTERP" "$TMD" && grep -q "RX $MIX2 INTERP" "$TMD" && { patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"RX $MIX INTERP\"]" "RX $MIX MIX1"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"RX $MIX2 INTERP\"]" "RX $MIX2 MIX1"; }
+                patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR0 INP0 Volume\"]" "$IIRVOL"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR1 INP0 Volume\"]" "$IIRVOL"
+                grep -q 'IIR0 INP1 MUX' "$TMD" && { patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR0 INP1 MUX\"]" "$rx1"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR1 INP1 MUX\"]" "$rx2"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"RX $MIX MIX1 INP1\"]" "IIR0"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"RX $MIX2 MIX1 INP1\"]" "IIR1"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR0 INP1 Volume\"]" "$IIRVOL"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR1 INP1 Volume\"]" "$IIRVOL"; }
+                grep -q 'IIR0 INP2 MUX' "$TMD" && { patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR0 INP2 MUX\"]" "$rx1"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR1 INP2 MUX\"]" "$rx2"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"RX $MIX MIX1 INP2\"]" "IIR0"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"RX $MIX2 MIX1 INP2\"]" "IIR1"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR0 INP2 Volume\"]" "$IIRVOL"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR1 INP2 Volume\"]" "$IIRVOL"; }
+                grep -q 'IIR0 INP3 MUX' "$TMD" && { patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR0 INP3 MUX\"]" "$rx1"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR1 INP3 MUX\"]" "$rx2"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR0 INP3 Volume\"]" "$IIRVOL"; patch_xml -s "$FILE" "/mixer/path[@name=\"$panam\"]/ctl[@name=\"IIR1 INP3 Volume\"]" "$IIRVOL"; }
+                MACRO_H=1
+              fi
+            done
+            [ -n "$MACRO_H" ] && awk -F'"' '/ctl name="IIR0 Band1" id="0" value="268435456"/||/ctl name="IIR0 Band1" id="1" value="0"/{f=1}/ctl name="IIR0 Band1" value="00 00 00 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"/{f=2}BEGIN{i1="  ";i2="    "}f==1&&$0~/<path name="sidetone-iir">/{b=i1"<path name=\"silmaril\">";for(n=1;n<=5;n++)for(i=0;i<=4;i++){v=(i==0)?"268435456":"0";b=b"\n"i2"<ctl name=\"IIR0 Band"n"\" id=\""i"\" value=\""v"\"/>\n"i2"<ctl name=\"IIR1 Band"n"\" id=\""i"\" value=\""v"\"/>"}b=b"\n"i1"</path>";print b"\n"$0;next}f==2&&$0~/<path name="sidetone-iir">/{b=i1"<path name=\"silmaril\">";for(n=1;n<=5;n++){b=b"\n"i2"<ctl name=\"IIR0 Band"n"\" value=\"00 00 00 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\" />\n"i2"<ctl name=\"IIR1 Band"n"\" value=\"00 00 00 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\" />"}b=b"\n"i1"</path>";print b"\n"$0;next}{print}' "$FILE" > tmp && mv tmp "$FILE"
+          fi
+          if [ -n "$SLIM_H" ] || [ -n "$MACRO_H" ]; then
+            for panam in ${names}; do
+              sed -i "/<path name=\"$panam\">/a \ \ \ \ \ <path name=\"silmaril\"/>" "$FILE"
+            done
+            sed -i -r '/<path name="sidetone-headphones">/,/<\/path>/d' "$FILE"
+          fi
+          unset names
         fi
-        if [ -n "$SLIM_H" ] || [ -n "$MACRO_H" ]; then
-          for panam in ${names}; do
-            sed -i "/<path name=\"$panam\">/a \ \ \ \ \ <path name=\"silmaril\"/>" "$FILE"
-          done
-          sed -i -r '/<path name="sidetone-headphones">/,/<\/path>/d' "$FILE"
-        fi
-        unset names
       fi
     done
     purge
@@ -316,6 +302,22 @@ if [ -n "$QCP" ]; then
     done
     purge
   fi
+  for FILE in ${MIXS_NESTED}; do
+    if [ "$FILE" != "mixer_paths_overlay_dynamic.xml" ] && [ "$FILE" != "mixer_paths_overlay_static.xml" ]; then
+      if grep -q '<path name="line">' "$FILE"; then
+        names="$(grep -E -o 'headphone(s(-generic)?|(-generic)?)' "$FILE" | sort -u)"
+        for panam in ${names}; do
+          sed -i "/<path name=\"$panam\">/a \ \ \ \ <path name=\"line\"/>" "$FILE"
+        done
+        unset names
+        sed -i '\#<path name="line">#,\#</path>#s#<path name="headphones"/>#<!-- <path name="headphones" /> -->#' "$FILE"
+        if strings "$PHAL64" 2>/dev/null | grep -q "hph-class-ab-mode" && ! grep -q "hph-class-ab-mode" "$FILE"; then
+          sed -i '/<path name="line">/i\<path name="hph-class-ab-mode">\n\ \ </path>' "$FILE"
+        fi
+      fi
+    fi
+  done
+  purge
 fi
 if [ -n "$TENZ" ]; then
   ! $AML && { ui_print " "; ui_print " - Patching mixers"; }

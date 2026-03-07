@@ -1,5 +1,8 @@
 # Changelog
 
+## [19.26] - `2026-03-07`
+- Various improvements & fixes
+
 ## [19.05] - `2025-12-27`
 Initial release
 ### Installer
