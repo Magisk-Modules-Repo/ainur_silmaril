@@ -1,5 +1,9 @@
 # Changelog
 
+## [19.61] - `2026-07-15`
+- AINULINDALE v2
+- Various improvements & fixes
+
 ## [19.26] - `2026-03-07`
 - Various improvements & fixes
 
@@ -28,7 +32,7 @@ Initial release
 - Hw dsp offload disabler
 - Hw dsp bitwidth picker
 - Disabled Peak-to-range compression
-- Disabled HPF / Biquads support
+- HPF / Biquads support
 - Speaker multi-band drc disabler
 - Full Vrms for 3.5 devices
 - Selected platforms native dejitter & pmclk enabler

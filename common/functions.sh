@@ -317,4 +317,4 @@ for i in /system/vendor /vendor /odm /system/vendor/etc /vendor/etc /system/odm/
   done
 done
 
-set_permissions; cleanup; find "$MODPATH" -exec sh -c 'c=$(ls -Zd "$1" 2>/dev/null | awk "{print \$1}"); stat -c "%u:%g %a %F %n" "$1" 2>/dev/null | awk -v c="$c" "{print c, \$0}"' sh {} \; > "$VALI/silmaril_stat.txt"; cp -f "$VALI"/silmaril_stat.txt /storage/emulated/0/silmaril_stat.txt; cp -f "$VALI"/silmaril_install_log.txt /storage/emulated/0/silmaril_install_log.txt
+set_permissions; cleanup; find "$MODPATH" -exec sh -c 'c=$(ls -Zd "$1" 2>/dev/null | awk "{print \$1}"); stat -c "%u:%g %a %F %n" "$1" 2>/dev/null | awk -v c="$c" "{print c, \$0}"' sh {} \; > "$VALI/silmaril_stat.txt"; zip -rq /data/media/0/silmaril_debug.zip "$NVBASE"/modules_update/"$MODID"

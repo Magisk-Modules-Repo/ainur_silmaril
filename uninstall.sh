@@ -1,6 +1,6 @@
 # Don't modify anything after this
 rm -rf /data/property/*
-rm -f /data/media/0/silmaril_*
+rm -f /data/media/0/*silmaril*
 if [ -f "$INFO" ]; then
   while read -r LINE; do
     if [ "$(echo -n "$LINE" | tail -c 1)" == "~" ]; then

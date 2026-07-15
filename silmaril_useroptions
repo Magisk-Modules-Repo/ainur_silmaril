@@ -1,8 +1,8 @@
 # AINUR SILMARIL
 # UserOptions (UO)
-UVER=83
+UVER=86
 
-#### INSTRUCTIONS ####
+##### INSTRUCTIONS #####
 #
 # ! UO (useroptions) file isn't needed for SILMARIL to process !
 #
@@ -41,17 +41,15 @@ UVER=83
 #
 
 
-#### UNIVERSAL OPTIONS ####
+##### UNIVERSAL OPTIONS ####
 
-## U_VSTP: VOLUME SLIDER STEPS
+##
+### U_VSTP: VOLUME SLIDER STEPS
 #
 #   OS volume is calculated from a logarithmic attenuation
 #   curve, where a volume index maps corresponding dB value.
 #   Db is then converted to an amplitude scale. OS fills gaps
 #   between the index points linearly.
-#   Ideally, you want reattenuated curve for every set of
-#   volume steps. SILMARIL will automatically reattenuate the
-#   curve based off desired *U_VSTP* value.
 #   Perfectly, *U_VSTP* value should reflect the entire index
 #   range (*100*) allowed by OS. This way slider steps match
 #   points index, allowing for granular volume adjustment without
@@ -61,7 +59,43 @@ UVER=83
 #
 U_VSTP=
 
-## U_HL: SAMPLER HALF LENGTH
+### U_VCRE: VOLUME CURVE REATTENUATION
+#
+#   The volume curve determines how loudness scales to the 
+#   volume slider steps.
+#   Since human hearing and different audio gear perceive
+#   sound levels differently, changing this curve alters
+#   how responsive, sensitive, or smooth individual volume
+#   steps feel across the slider range.
+#
+#   You can choose between:
+#   Logarithmic > smooth control at higher volumes
+#               > stretches out the lower decibel steps
+#               > can feel "dead" or very quiet below 50%
+#               > default fallback / traditional scaling
+#
+#   Linear      > equal decibel steps across the entire scale
+#               > highly predictable and uniform progression
+#               > very smooth transition in the upper half
+#               > can take a moment to wake up from total zero
+#
+#   Cubic       > snappy and responsive low-end control
+#               > rapidly climbs out of initial digital silence
+#               > expands the usable moderate listening range
+#               > ideal for high-sensitivity headphones or IEMs
+#
+#   SILMARIL will automatically reattenuate the curve based off 
+#   desired *U_VSTP* value. If no *U_VSTP* is set, the standard
+#   aosp value is used.
+#
+#   Possible *U_VCRE* values:
+#   *log lin cub*
+# 	*Ex: U_VSTP=log* for logarithmic curve
+#
+U_VCRE=
+##
+
+### U_HL: SAMPLER HALF LENGTH
 #
 #   Variable resampling rate sampler is practically linear
 #   phase with a symmetrical impulse response that ensures
@@ -88,7 +122,7 @@ U_VSTP=
 #
 U_HL=960
 
-## U_SBA: SAMPLER STOPBAND ATTENUATION
+### U_SBA: SAMPLER STOPBAND ATTENUATION
 #
 #   Sampling always alias - high frequency signals can fold
 #   back onto lower frequencies creating distortions. To
@@ -110,7 +144,7 @@ U_HL=960
 #
 U_SBA=127
 
-## U_ESTV: EQUAL STEREO SPEAKER VOLUME 
+### U_ESTV: EQUAL STEREO SPEAKER VOLUME 
 #
 #   Devices that use earpiece in stereo mode sometimes
 #   set unequal curves for both speakers. This creates
@@ -127,7 +161,7 @@ U_SBA=127
 #
 U_ESTV=
 
-## U_APFF: FLOATING POINT FORMAT
+### U_APFF: FLOATING POINT FORMAT
 #
 #   Usually, even being present in the system - floating
 #   point format *AUDIO_FORMAT_PCM_FLOAT* isn't exposed
@@ -172,7 +206,7 @@ U_ESTV=
 #
 U_APFF=
 
-## U_APDBR: DEEP BUFFER REMOVAL
+### U_APDBR: DEEP BUFFER REMOVAL
 #
 #   A common misconception throughout all these years being
 #   deepbuffer somehow responsible for worsening audio.
@@ -199,7 +233,7 @@ U_APFF=
 #
 U_APDBR=
 
-## U_SDRC: SPEAKER DRC
+### U_SDRC: SPEAKER DRC
 #
 #   Disable speaker dynamic range compression. 
 #   By design intended only for default outputdevice globally
@@ -213,7 +247,7 @@ U_APDBR=
 #
 U_SDRC=
 
-## U_BTDAO: DISABLE BLUETOOTH A2DP HW OFFLOAD
+### U_BTDAO: DISABLE BLUETOOTH A2DP HW OFFLOAD
 #
 #   A2DP offload is used to offload processing task to
 #   a dedicated bt hw.
@@ -225,7 +259,7 @@ U_SDRC=
 #
 U_BTDAO=
 
-## U_BTDAV: DISABLE BLUETOOTH ABSOLUTE VOLUME
+### U_BTDAV: DISABLE BLUETOOTH ABSOLUTE VOLUME
 #
 #   By default bluetooth device media volume is synchronized
 #   with device volume steps it's connected to. In some cases
@@ -241,7 +275,7 @@ U_BTDAO=
 #
 U_BTDAV=
 
-## U_AAEM: AAUDIO EXCLUSIVE MODE
+### U_AAEM: AAUDIO EXCLUSIVE MODE
 #
 #   AAudio API provides better latency over older Open
 #   SLES implementation. Exclusive AAudio mode bypasses
@@ -256,9 +290,7 @@ U_BTDAV=
 #
 U_AAEM=
 
-#
 ##
-
 ### OEM SFX WHITELIST
 #
 #   By default SILMARIL removes android and vendor audio
@@ -269,7 +301,7 @@ U_AAEM=
 #   from being removed.
 #
 
-## KEEP OEM & Android BT SoundFX:
+### KEEP OEM & Android BT SoundFX:
 #   Bluetooth spatial effects
 #
 #   To restore BT SFX put *true* after =
@@ -277,7 +309,7 @@ U_AAEM=
 #
 U_BT_KEEPFX=
 
-## KEEP OEM SoundFX:
+### KEEP OEM SoundFX:
 #   Including dolby, dirac, dts & various custom
 #   OEM SFX
 #
@@ -286,7 +318,7 @@ U_BT_KEEPFX=
 #
 U_OEM_KEEPFX=
 
-## MANUAL SFX INPUT
+### MANUAL SFX INPUT
 #
 #   In case *U_OEM_KEEPFX* flag didn't succeed in resolving
 #   issues, you can manually add in a lib, or a list of
@@ -305,14 +337,14 @@ U_OEM_KEEPFX=
 #   *Ex: U_MANUAL_KEEPFX=lib1 lib2 ...*
 #
 U_MANUAL_KEEPFX=
+##
+####
 
-###
 
 
+#### QUALCOMM OPTIONS ###
 
-### QUALCOMM OPTIONS ###
-
-## Q_AGA: CODEC ANALOG GAIN
+### Q_AGA: CODEC ANALOG GAIN
 #
 #   Range from 0 to XX (*~168db*)
 #   Default value usually equals *0db* gain.
@@ -329,7 +361,7 @@ U_MANUAL_KEEPFX=
 #
 Q_AGA=
 
-## Q_HDGA: HEADPHONE DIGITAL GAIN
+### Q_HDGA: HEADPHONE DIGITAL GAIN
 #
 #   Range from 0 (*-84db*) to 124 (*+40db*)
 #   Default value usually is 84 (*0db*)
@@ -351,7 +383,7 @@ Q_AGA=
 #
 Q_HDGA=
 
-## Q_SDGA: SPEAKER DIGITAL GAIN
+### Q_SDGA: SPEAKER DIGITAL GAIN
 #
 #   Range from 0 (*-84db*) to 124 (*+40db*)
 #   Default value usually is 84 (*0db*)
@@ -366,7 +398,7 @@ Q_HDGA=
 #
 Q_SDGA=
 
-## Q_HCOMP: HEADPHONE COMPANDER
+### Q_HCOMP: HEADPHONE COMPANDER
 #
 #   Compander is compressing and expanding audio
 #   signal to fit wider DR into narrower bandwidth.
@@ -396,7 +428,7 @@ Q_SDGA=
 #
 Q_HCOMP=
 
-## Q_SCOMP: SPEAKER COMPANDER
+### Q_SCOMP: SPEAKER COMPANDER
 #
 #   Same as above, but for speakers only.
 #
@@ -405,7 +437,7 @@ Q_HCOMP=
 #
 Q_SCOMP=
 
-## Q_CBIT: CODEC BITWIDTH
+### Q_CBIT: CODEC BITWIDTH
 #
 #   Set codec bitwidth across various interfaces
 #   available on given platform. Available formats
@@ -422,7 +454,7 @@ Q_SCOMP=
 #
 Q_CBIT=
 
-## Q_CSMPL: CODEC SAMPLINGRATE
+### Q_CSMPL: CODEC SAMPLINGRATE
 #
 #   Set codec samplerate across various interfaces
 #   available on given platform. Available rates
@@ -442,7 +474,7 @@ Q_CBIT=
 #
 Q_CSMPL=
 
-## Q_BTCSMPL: CODEC BLUETOOTH SAMPLINGRATE
+### Q_BTCSMPL: CODEC BLUETOOTH SAMPLINGRATE
 #
 #   Possible sampling rates for most platforms:
 #   *KHZ_44P1 KHZ_48 KHZ_96*
@@ -460,7 +492,7 @@ Q_CSMPL=
 #
 Q_BTCSMPL=
 
-## Q_MBDRC: MULTI-BAND DRC
+### Q_MBDRC: MULTI-BAND DRC
 #
 #   Disable speaker multi-band dynamic range compression.
 #   Multiband compression divides the audio spectrum into
@@ -482,7 +514,7 @@ Q_BTCSMPL=
 #
 Q_MBDRC=
 
-## Q_FBUF: HAL FRAME BUFFER
+### Q_FBUF: HAL FRAME BUFFER
 #
 #   The frame buffer in Audio HAL determines how many
 #   audio frames are processed in each period before the
@@ -515,7 +547,7 @@ Q_MBDRC=
 #
 Q_FBUF=
 
-## Q_DSPOD: HW DSP OFFLOAD
+### Q_DSPOD: HW DSP OFFLOAD
 #
 #   HW DSP is used to decode & de/compress audio data
 #   instead of cpu for better power efficiency. Qcom
@@ -534,7 +566,7 @@ Q_FBUF=
 #
 Q_DSPOD=
 
-## Q_HDSPBW: HW DSP BITWIDTH
+### Q_HDSPBW: HW DSP BITWIDTH
 #
 #   Forces HW DSP to desired bitwidth. Possible
 #   bitwidth for most platforms:
@@ -546,7 +578,37 @@ Q_DSPOD=
 #
 Q_HDSPBW=
 
-## Q_CPGD: CODEC POWER GATING
+##
+### Q_BIQHPF: BIQUADS / HIGH-PASS FILTER
+#
+#   High-pass filter (HPF) is shaping audio tonal
+#   balance by cutting low-frequency content off
+#   while preserving the rest of ranges. Filter
+#   applies a roll-off below a defined cutoff
+#   frequency, with a slope that determines how
+#   gradually or aggressively the low-end is
+#   attenuated. Overuse of HPF can make a content
+#   sound thin and unnatural, stripping warmth
+#   from vocals and instruments. Over-filtering
+#   can also remove ambient low-end reflections
+#   that contribute to depth and space, making
+#   a track feel unnaturally sterile and flat.
+#
+#   Additionally, on qcom, can be used as biQuads
+#   filter - a second-order digital filter that 
+#   acts as an EQ/IRS, but on codec (hw) level.
+#
+# 	          Might not work on some devices.
+# !            CAN RESULT IN BUGS/SOUND LOSS            !
+#
+#   Set *Q_BIQHPF=true* to disable hpf/enable biQuads,
+#   or leave untouched for default behavior
+#   To use biQuads, please follow this thread:
+#   https://xdaforums.com/t/mod-audio-biquads-utilizing-qualcomms-audio-codec-for-headphone-compensation.3093000
+#
+Q_BIQHPF=
+
+### Q_CPGD: CODEC POWER GATING
 #
 #   Disables the on-demand power control that lets
 #   the kernel switch off audio codec and audio bus
@@ -555,15 +617,16 @@ Q_HDSPBW=
 #   Not all platforms support power gating. Some
 #   kernels might not let pgating state changing.
 #
-# !             Necessary when Biquads used              !
+# !             Necessary when Q_BIQHPF used             !
 # !             CAN RESULT IN BUGS/BOOTLOOPS             !
 #
 #   Set *Q_CPGD=true* to force disable power gating,
 #   or leave untouched for default behavior
 #
 Q_CPGD=
+##
 
-## Q_LGHIM: LG QUAD DAC HIGH IMPEDANCE MODE
+### Q_LGHIM: LG QUAD DAC HIGH IMPEDANCE MODE
 #
 # !          ONLY FOR LG DEVICES WITh ESS DAC            !
 #
@@ -572,13 +635,13 @@ Q_CPGD=
 #
 Q_LGHIM=
 
-###
+####
 
 
 
-### MTK OPTIONS ###
+### MTK OPTIONS ####
 
-## M_COFF: USB OFFLOAD
+#### M_COFF: USB OFFLOAD
 #
 #   DSP (?) to USB offload.
 #   I'm honestly not sure about this one, since I couldn't
@@ -589,7 +652,7 @@ Q_LGHIM=
 #
 M_COFF=
 
-## M_GAIN: CODEC AUDIO GAIN
+### M_GAIN: CODEC AUDIO GAIN
 #
 #   Set codec gain for Headphones & Lineout playback.
 #   Possible DB values for most MTK codecs:
@@ -601,7 +664,7 @@ M_COFF=
 #
 M_GAIN=
 
-## M_DHPF: HIGH-PASS FILTER
+### M_DHPF: HIGH-PASS FILTER
 #
 #   High-pass filter (HPF) is shaping audio tonal
 #   balance by cutting low-frequency content off
@@ -621,7 +684,7 @@ M_GAIN=
 #
 M_DHPF=
 
-## M_DRC: SOUNDFX DYNAMIC RANGE COMPRESSION
+### M_DRC: SOUNDFX DYNAMIC RANGE COMPRESSION
 #
 #   MTK Loudness enhancer FX seem to have DRC
 #   builtin, which you can disable with this
@@ -632,7 +695,7 @@ M_DHPF=
 #
 M_DRC=
 
-## M_IMP: CODEC IMPEDANCE
+### M_IMP: CODEC IMPEDANCE
 #
 #   Support native impedance of your headphones
 #   on the codec side. According to MTK sources,
@@ -645,13 +708,13 @@ M_DRC=
 #   leave untouched for default behavior
 #
 M_IMP=
-###
+####
 
 
 
-### TENSOR PIXELS OPTIONS ###
+#### TENSOR PIXELS OPTIONS ####
 
-## T_CSMPL: AOC CODEC SAMPLING
+### T_CSMPL: AOC CODEC SAMPLING
 #
 #   Codec could take following sampling options:
 #   *SR_44P1K SR_48K SR_88P2K SR_96K SR_176P4K*
@@ -661,7 +724,7 @@ M_IMP=
 #
 T_CSMPL=
 
-## T_CBIT: AOC CODEC BITWIDTH
+### T_CBIT: AOC CODEC BITWIDTH
 #
 #   Codec could take following format options:
 #   *S16_LE S24_LE S24_3LE S32_LE*
@@ -674,7 +737,7 @@ T_CSMPL=
 #
 T_CBIT=
 
-## T_CBTSMPL: AOC CODEC BLUETOOTH SAMPLING
+### T_CBTSMPL: AOC CODEC BLUETOOTH SAMPLING
 #
 #   Codec could take following sampling options:
 #   *SR_44P1K SR_48K SR_88P2K SR_96K SR_176P4K*
@@ -684,7 +747,7 @@ T_CBIT=
 #
 T_CBTSMPL=
 
-## T_CBTBIT: AOC CODEC BLUETOOTH BITWIDTH
+### T_CBTBIT: AOC CODEC BLUETOOTH BITWIDTH
 #
 #   Codec could take following format options:
 #   *S16_LE S24_LE S24_3LE S32_LE*
@@ -697,7 +760,7 @@ T_CBTSMPL=
 #
 T_CBTBIT=
 
-## T_FBUF: HAL FRAME BUFFER
+### T_FBUF: HAL FRAME BUFFER
 #
 #   The frame buffer in Audio HAL determines how many
 #   audio frames are processed in each period before the
@@ -727,13 +790,13 @@ T_CBTBIT=
 #   Leave untouched for default behavior
 #
 T_FBUF=
-###
+####
 
 
 
-### EXYNOS OPTIONS ###
+#### EXYNOS OPTIONS ####
 
-## E_CSMPL: CODEC SAMPLING
+### E_CSMPL: CODEC SAMPLING
 #
 #   Codec could take following sampling
 #   options:
@@ -743,12 +806,12 @@ T_FBUF=
 #   *Ex: E_CSMPL=48kHz*
 #
 E_CSMPL=
-###
+####
 
 
 
 
-#### DEBUG SECTION ####
+##### DEBUG SECTION #####
 #
 # ! 1 > Make sure to check if any useroption flag is set -
 # it's possible that either of flags is leading to an issue.
@@ -765,7 +828,7 @@ E_CSMPL=
 # ainur telegram chat to add fix for certain device.
 #
 
-## D_LIBS: DISABLE LIBS EDITS
+### D_LIBS: DISABLE LIBS EDITS
 #
 #   Setting *D_LIBS=true* will prevent SILMARIL from touching
 #   any non-sfx libraries.
@@ -774,14 +837,14 @@ D_LIBS=
 #
 # Put advanced D_LIBS flags below when needed
 
-## D_PROPS: DISABLE PROPS EDITS
+### D_PROPS: DISABLE PROPS EDITS
 #
 #   Setting *D_PROPS=true* will prevent SILMARIL from setting
 #   property keys.
 #
 D_PROPS=
 
-## D_MIXERS: DISABLE MIXER EDITS
+### D_MIXERS: DISABLE MIXER EDITS
 #
 #   Setting *D_MIXERS=true* will prevent SILMARIL from
 #   performing mixer edits.
@@ -807,12 +870,12 @@ D_MIXERS=
 #     https://dumps.tadiphone.dev/dumps
 #     (or send a link to stock oem rom)
 #
+#   > Send Silmaril zipped module, generated during
+#     install at internal storage (*/storage/emulated/0*)
+#
 #   > Get adb/log while experiencing rom issues
 #
-#   > Get bootup log if you have bootloop
-#
-#   > Zip installed Silmaril module, along with
-#     logs
+#   > Get bootup log if you experience bootloop
 #
 #   > Report findings at Ainur Telegram Chat:
 #     https://t.me/ainuraudio
@@ -821,7 +884,7 @@ D_MIXERS=
 # as well as determining the problem in general.
 #
 #    ! Messages that are not supported by !
-#       ! context/info/debug followup !
-#            ! WILL BE IGNORED !
+#    !    context/info/debug followup     !
+#    !         WILL BE IGNORED            !
 #
-###
+####

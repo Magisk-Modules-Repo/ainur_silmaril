@@ -1,7 +1,6 @@
 #!/system/bin/sh
 AMLMODPATH=$MODPATH
 MODPATH=$mod
-[ -z "$NVBASE" ] && NVBASE=/data/adb
 AML=true
 VALI=$mod/files/valinor
 exec 2>"$VALI"/silmaril_aml_install_log.txt; set -x
@@ -75,4 +74,4 @@ cp_ch() {
 
 MODPATH=$AMLMODPATH
 
-cp -f "$VALI"/silmaril_aml_install_log.txt /storage/emulated/0/silmaril_aml_install_log.txt
+cp -f "$VALI"/silmaril_aml_install_log.txt /data/media/0/silmaril_aml_install_log.txt
