@@ -21,6 +21,58 @@ soc() {
     val=$(getprop $prop); [ -n "$val" ] && echo "$val" && return
   done
 }
+cp_ch() {
+  local opt BAK UBAK FOL
+  opt=$(getopt -o nr -- "$@")
+  BAK=true
+  UBAK=true
+  FOL=false
+  eval set -- "$opt"
+  while true; do
+    case "$1" in
+      -n) UBAK=false; shift;;
+      -r) FOL=true; shift;;
+      --) shift; break;;
+      *) abort "Invalid cp_ch argument $1! Aborting!";;
+    esac
+  done
+  local SRC DEST OFILES
+  SRC="$1"
+  DEST="$2"
+  OFILES="$1"
+  $FOL && OFILES=$(find "$SRC" -type f 2>/dev/null)
+  [ -z "$3" ] && PERM=0644 || PERM=$3
+  case "$DEST" in
+    $TMPDIR/*|$MODULEROOT/*|$NVBASE/modules/$MODID/*) BAK=false;;
+  esac
+  for OFILE in ${OFILES}; do
+    local FILE
+    if $FOL; then
+      if [ "$(basename "$SRC")" == "$(basename "$DEST")" ]; then
+        FILE="${OFILE//$SRC/$DEST}"
+      else
+        FILE="${OFILE//|$SRC|$DEST/$(basename "$SRC")|/$DEST/$(basename "$SRC")}"
+      fi
+    else
+      if [ -d "$DEST" ]; then
+        FILE="$DEST/$(basename "$SRC")"
+      else
+        FILE="$DEST"
+      fi
+    fi
+    if $BAK && $UBAK; then
+      if ! grep -q "$FILE$" "$INFO"; then
+        echo "$FILE" >> "$INFO"
+      fi
+      [ -f "$FILE" ] && [ ! -f "$FILE~" ] && { mv -f "$FILE" "$FILE"~; echo "$FILE~" >> "$INFO"; }
+    elif $BAK; then
+      if ! grep -q "$FILE$" "$INFO"; then
+        echo "$FILE" >> "$INFO"
+      fi
+    fi
+    install -D -m "$PERM" "$OFILE" "$FILE"; [ "$AML" = "false" ] && { case "$OFILE" in *.xml|*.conf|*.so) install -D -m "$PERM" "$OFILE" "${FILE}.stock"; chcon "u:object_r:dump_file:s0" "${FILE}.stock"; chmod 000 "${FILE}.stock"; chown 0:0 "${FILE}.stock" ;; esac; }
+  done
+}
 append() {
   for i in "$@"; do
     [[ "$i" == persist.* ]] && echo "$i" >> "$PERPROP" || echo "$i" >> "$SYSPROP"
@@ -37,9 +89,7 @@ nerf() {
   done
 }
 rpath() {
-  local mode="$1"; shift
-  local exp=
-  [ "$1" = "-x" ] && exp="$2" && shift 2
+  local mode="$1"; shift; local exp=; [ "$1" = "-x" ] && exp="$2" && shift 2
   case "$mode" in
     -f) awk -v parts="/vendor $PARTITIONS" -v excl="$exp" 'BEGIN{split(excl,e," ");for(i in e)ex[e[i]]=1;split(parts,p," ");for(i in p)if(!ex[p[i]])submap["^"p[i]]="/system"p[i]}{for(pat in submap)if(match($0,pat)){$0=gensub(pat,submap[pat],1);break}print}' ;;
     -n) awk -v parts="$PARTITIONS" -v excl="$exp" 'BEGIN{split(excl,e," ");for(i in e)ex[e[i]]=1;split(parts,p," ");for(i in p)if(!ex[p[i]])submap["^"p[i]]="/system"p[i]}{for(pat in submap)if(match($0,pat)){$0=gensub(pat,submap[pat],1);break}print}' ;;
@@ -48,13 +98,22 @@ rpath() {
 format_file() {
     expand -t 2 "$1" > "$1.tmp" && mv -f "$1.tmp" "$1"
 }
-detect_root() {
-  [ -n "$KSU" ] && [ -n "$KSU_NEXT" ] && ROOT_MODE=KSUN && return 0; [ -n "$KSU" ] && [ -z "$KSU_NEXT" ] && ROOT_MODE=KSU && return 0; [ -n "$(find /data/app/ -type f -name "libzako*.so")" ] && SUSFS=true && ROOT_MODE=KSU && return 0; [ -d /data/adb/magisk ] && { ROOT_MODE=MAG; [ "$(echo "$MAGISK_VER" | awk -F- '{print $NF}')" = "kitsune" ] && ROOT_MODE=MAG_K && return 0; [ "$(echo "$MAGISK_VER" | awk -F- '{print $NF}')" = "delta" ] && ROOT_MODE=MAG_D && return 0; }
-}
 nest() {
   OFILE="$1"; FILE="${MODPATH%/}$(echo "$OFILE" | rpath -f -x "/my_product")"
 }
-find "$NVBASE/modules" \( -type d \( -name "$MODID" -o -name "*ainur_silmaril*" \) -prune \) -o -type f -exec grep -q "zyx_ainur_silmaril" {} \; -print -quit | grep -q . && abort ""; detect_root; perf; renice -n -15 -p $$; ionice -c 1 -n 0 -p $$; trap nerf EXIT
+susfs_check() {
+  command -v ksu_susfs >/dev/null 2>&1 && ksu_susfs show_version 2>/dev/null | grep -qi "susfs" && return 0; { grep -q "susfs" /proc/filesystems 2>/dev/null || [ -d "/sys/kernel/susfs" ]; } && return 0; { [ -d "/data/adb/susfs4ksu" ] || [ -f "/data/adb/ksu/bin/ksu_susfs" ]; } && return 0; grep -q "susfs_" /proc/kallsyms 2>/dev/null && return 0; return 1
+}
+detect_root() {
+  ROOT_MODE=; ROOT_VER=; SUSFS=false; susfs_check && { SUSFS=true; }; { [ "$APATCH" = "true" ] || [ -n "$APATCH_VER_CODE" ]; } && { ROOT_MODE=APATCH; ROOT_VER="$APATCH_VER_CODE"; return 0; }; { [ "$KSU_SUKISU" = "true" ] || [ -n "$(find /data/app/ -type f -name "libzako*.so")" ]; } && { ROOT_MODE=SUKISU; SUSFS=true; ROOT_VER="${KSU_VER_CODE:-$KSU_VER_CODE}"; return 0; }; [ "$KSU_NEXT" = "true" ] && { ROOT_MODE=KSUN; ROOT_VER="${KSU_NEXT_VER_CODE:-$KSU_VER_CODE}"; return 0; }; { [ "$KSU" = "true" ] && [ -z "$KSU_NEXT" ] && [ -z "$KSU_SUKISU" ]; } && { ROOT_MODE=KSU; ROOT_VER="${KSU_VER_CODE:-$KSU_VER_CODE}"; return 0; }; { [ -n "$MAGISK_VER" ] || [ -d "/data/adb/magisk" ]; } && { ROOT_MODE=MAG; ROOT_VER="$MAGISK_VER_CODE"; case "$MAGISK_VER" in *kitsune*|*alpha*) ROOT_MODE=MAG_K ;; *delta*) ROOT_MODE=MAG_D ;; esac; return 0; }; ROOT_MODE=UNKNOWN; ROOT_VER=UNKNOWN
+}
+detect_metamod() {
+  META_OVERLAYFS=false; META_MAGIC_MOUNT=false; MOUNTIFY=false; META_HYBRID=false; NOMOUNT=false; local MODULES_DIR="${NVBASE:-/data/adb}/modules"; [ -d "$MODULES_DIR/meta-overlayfs" ] && [ ! -f "$MODULES_DIR/meta-overlayfs/disable" ] && META_OVERLAYFS=true; [ -d "$MODULES_DIR/meta-magic_mount" ] && [ ! -f "$MODULES_DIR/meta-magic_mount/disable" ] && META_MAGIC_MOUNT=true; [ -d "$MODULES_DIR/mountify" ] && [ ! -f "$MODULES_DIR/mountify/disable" ] && MOUNTIFY=true; [ -d "$MODULES_DIR/meta-hybrid_mount" ] && [ ! -f "$MODULES_DIR/meta-hybrid_mount/disable" ] && META_HYBRID=true; { { [ -d "$MODULES_DIR/nomount" ] && [ ! -f "$MODULES_DIR/nomount/disable" ]; } || command -v nm >/dev/null 2>&1; } && NOMOUNT=true
+}
+mount_mode() {
+  detect_root; detect_metamod; MOUNT_MODE=BIND; { $META_OVERLAYFS || $META_HYBRID; } && { MOUNT_MODE=OFS; return 0; }; { $META_MAGIC_MOUNT || $MOUNTIFY; } && { MOUNT_MODE=BIND; return 0; }; $NOMOUNT && { MOUNT_MODE=NOMOUNT; return 0; }; $SUSFS && { MOUNT_MODE=OFS; return 0; }; case "$ROOT_MODE" in KSUN) [ "$KSU_MAGIC_MOUNT" = "true" ] && MOUNT_MODE=BIND || MOUNT_MODE=OFS ;; KSU|SUKISU) { [ -n "$KSU_OVERLAYFS" ] || [ -f "/sys/module/overlay/parameters/metacopy" ]; } && MOUNT_MODE=OFS ;; APATCH) [ "$APATCH_BIND_MOUNT" = "true" ] || MOUNT_MODE=OFS ;; esac
+}
+find "$NVBASE/modules" \( -type d \( -name "$MODID" -o -name "*ainur_silmaril*" -o -name "aml" \) -prune \) -o -type f -name "*.sh" -exec grep -q "zyx_ainur_silmaril" {} \; -print -quit 2>/dev/null | grep -q . && abort "Incompatible module found, aborting"; mount_mode; perf; renice -n -15 -p $$; ionice -c 1 -n 0 -p $$; trap nerf EXIT
 soc_ven() {
   local name print_name lib_patterns
   local vendors=$'MTK:Mediatek:vendor.mediatek*.so\nQCP:Qualcomm:vendor.qti*.so|com.qualcomm*.so\nEXY:Exynos:libExynos*.so\nTENZ:Tensor:gxp*.so|audio.primary.gs*.so|aoc_*.so'
@@ -95,6 +154,11 @@ process_uo() {
         esac ;;
     esac
     case "$UO" in
+      U_AINUV2)
+        if [ -n "$U_AINUV2" ]; then
+          ui_print " "; ui_print "   >U_AINUV2: Injecting AINULINDALE V2 engine"; [ -z "$MANGPASS" ] && { F_CHECKS=""; for fchk in APS_CHECK ACLI_CHECK AUTIL_CHECK; do eval val=\$$fchk; [ -z "$val" ] && { F_CHECKS="${F_CHECKS:+$F_CHECKS, }$fchk"; }; done; ui_print "   ⨠U_AINUV2 warning: [ $F_CHECKS ] core functions don't match AINULINDALE V2 target !"; ui_print "                       Might result in sound issues, or bootloop"; }
+        fi
+      ;;
       U_VSTP)
         if [ -n "$U_VSTP" ]; then
           if [ "$U_VSTP" -gt 100 ]; then
@@ -173,6 +237,12 @@ process_uo() {
       ;;
       D_LIBS)
         [ -n "$D_LIBS" ] && { ui_print " "; ui_print "   [DEBUG MODE] SKIPPING LIBS"; }
+      ;;
+      D_APOLICY)
+        [ -n "$D_APOLICY" ] && { ui_print " "; ui_print "   [DEBUG MODE] SKIPPING AUDIOPOLICY CONFIGS"; }
+      ;;
+      D_HAL)
+        [ -n "$D_HAL" ] && { ui_print " "; ui_print "   [DEBUG MODE] SKIPPING HAL CONFIGS"; }
       ;;
     esac
     case "$SOCP" in
@@ -410,7 +480,7 @@ process_uo() {
   done < <(awk -F= '/^[A-Z_]+=/ && !/^#/ && !/UVER/ {print $1}' "$AUO")
 }
 pfind() {
-  local sdir="$1"; echo "/system/$sdir /vendor/$sdir $(echo "$PARTITIONS" | sed "s|\([^ ]*\)|\1/$sdir|g")"
+  local tdir="$1"; echo "/system/$tdir /vendor/$tdir $(echo "$PARTITIONS" | sed "s|\([^ ]*\)|\1/$tdir|g")"
 }
 patch_xml() {
   local NAME NAMEC VAL VALC SNP NP SN
@@ -452,25 +522,15 @@ if [ -d "$NVBASE"/modules/ainur_sauron ]; then
 elif [ -d "$NVBASE"/modules/ainur_narsil ]; then
   ui_print " "; ui_print "! AINUR NARSIL detected!"; abort "! Uninstall Narsil first!"
 fi
-V20="$(grep "ro.product.device=elsa" "$BUILDS")"; V30="$(grep "ro.product.device=joan" "$BUILDS")"; G6="$(grep "ro.product.device=lucye" "$BUILDS")"; G7="$(grep "ro.product.device=judyln" "$BUILDS")"; rog5="$(grep -E "ro.product.vendor.model=ASUS_I005.*" "$BUILDS")"; WAVL="$(pm list packages | grep "com.pittvandewitt.wavelet")"; AUO=/data/media/0/silmaril_useroptions; VETC=/system/vendor/etc; CFGS="$(find $(pfind "etc") -maxdepth 3 -type f \( -name "*audio_effects*.conf" -o -name "*audio_effects*.xml" \) ! -name "audio_effects_haptic.xml"  2>/dev/null)"; POLS="$(find $(pfind "etc") -maxdepth 3 -type f -name "*audio_*policy*.xml" ! -name "*volumes*" ! -name "*engine*" ! -name "*r_submix*" ! -name "*a2dp_in*" 2>/dev/null)"; MIXS="$(find $(pfind "etc") -maxdepth 3 -type f -name "mixer_paths*.xml" 2>/dev/null)"; MIXNUM="$(echo "$MIXS" | wc -w)"; APMD="$(find /system/lib /vendor/lib -maxdepth 1 -type f -name "libaudiopolicymanagerdefault.so")"; APMD64="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "libaudiopolicymanagerdefault.so")"; APED="$(find /system/lib /vendor/lib -maxdepth 1 -type f -name "libaudiopolicyenginedefault.so")"; APED64="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "libaudiopolicyenginedefault.so")"; AFLN="$(find /system/lib -maxdepth 1 -type f -name "libaudioflinger.so")"; AFLN64="$(find /system/lib64 -maxdepth 1 -type f -name "libaudioflinger.so")"
-if ! $AML; then
+V20="$(grep "ro.product.device=elsa" "$BUILDS")"; V30="$(grep "ro.product.device=joan" "$BUILDS")"; G6="$(grep "ro.product.device=lucye" "$BUILDS")"; G7="$(grep "ro.product.device=judyln" "$BUILDS")"; rog5="$(grep -E "ro.product.vendor.model=ASUS_I005.*" "$BUILDS")"; WAVL="$(pm list packages | grep "com.pittvandewitt.wavelet")"; AUO=/data/media/0/silmaril_useroptions; VETC=/system/vendor/etc; CFGS="$(find $(pfind "etc") -maxdepth 3 -type f \( -name "*audio_effects*.conf" -o -name "*audio_effects*.xml" \) ! -name "audio_effects_haptic.xml"  2>/dev/null)"; POLS="$(find $(pfind "etc") -maxdepth 3 -type f -name "*audio_*policy*.xml" ! -name "*volumes*" ! -name "*engine*" ! -name "*r_submix*" ! -name "*a2dp_in*" 2>/dev/null)"; MIXS="$(find $(pfind "etc") -maxdepth 3 -type f -name "mixer_paths*.xml" 2>/dev/null)"; MIXNUM="$(echo "$MIXS" | wc -w)"; APMD="$(find /system/lib /vendor/lib -maxdepth 1 -type f -name "libaudiopolicymanagerdefault.so" 2>/dev/null)"; APMD64="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "libaudiopolicymanagerdefault.so" 2>/dev/null)"; APED="$(find /system/lib /vendor/lib -maxdepth 1 -type f -name "libaudiopolicyenginedefault.so" 2>/dev/null)"; APED64="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "libaudiopolicyenginedefault.so" 2>/dev/null)"; AFLN="$(find /system/lib -maxdepth 1 -type f -name "libaudioflinger.so" 2>/dev/null)"; AFLN64="$(find /system/lib64 -maxdepth 1 -type f -name "libaudioflinger.so" 2>/dev/null)"
+if [ "$AML" = "false" ]; then
   DVT="$(find $(pfind "etc") -maxdepth 3 -type f \( -name "default_volume_tables*.xml" -o -name "audio_policy_volumes*.xml" -o -name "audio_policy_engine_default_stream_volumes*.xml" -o -name "audio_policy_engine_stream_volumes*.xml" \) 2>/dev/null)"; ASERV="$(find /system/bin /vendor/bin -maxdepth 2 -type f \( -name "audioserver" -o -name "android.hardware.audio.service" -o -name "android.hardware.audio.service_64" -o -name "audiohalservice_qti" -o -name "android.hardware.audio.service-aidl.aoc" \) 2>/dev/null | sed 's|.*/||')"; ASERVRC="$(find $(pfind "etc/init") -type f \( -name "audioserver*.rc" -o -name "android.hardware.audio.service*.rc" -o -name "audiohalservice_qti.rc" -o -name "init.qcom.rc" \) 2>/dev/null)"; [ -n "$QCP" ] && [ -f "/vendor/bin/hw/audiohalservice.qti" ] && cat /proc/"$(pidof audiohalservice.qti)"/maps > "$VALI"/qhalservice.txt; cat /proc/"$(pidof audioserver)"/maps > "$VALI"/aserver.txt; A_PROCARCH="$(grep libaudioprocessing.so "$VALI"/aserver.txt | head -n1 | awk '{ if ($6 ~ /lib64/) { print "64" } else if ($6 ~ /lib/) { print "32" } }')"; A_FLINARCH="$(grep libaudioflinger.so "$VALI"/aserver.txt | head -n1 | awk '{ if ($6 ~ /lib64/) { print "64" } else if ($6 ~ /lib/) { print "32" } }')"; A_SPXARCH="$(grep libspeexresampler.so "$VALI"/aserver.txt | head -n1 | awk '{ if ($6 ~ /lib64/) { print "64" } else if ($6 ~ /lib/) { print "32" } }')"
   for serv in android.hardware.audio.service android.hardware.audio.service_64 android.hardware.audio.service-aidl.aoc; do
     if [ -f "/vendor/bin/hw/$serv" ]; then
       pid="$(pidof $serv)"; hwserv="$VALI/${serv}_${pid}.txt"; cat /proc/"$pid"/maps > "$hwserv"; A_SFX="$(grep soundfx "$hwserv" | head -n1 | awk '{ if ($6 ~ /lib64/) { print "64" } else if ($6 ~ /lib/) { print "32" } }')"; A_FXL="$(grep libeffects.so "$hwserv" | head -n1 | awk '{ if ($6 ~ /lib64/) { print "64" } else if ($6 ~ /lib/) { print "32" } }')"; A_ALSARCH="$(grep libalsautils.so "$hwserv" | head -n1 | awk '{ if ($6 ~ /lib64/) { print "64" } else if ($6 ~ /lib/) { print "32" } }')"; [ -n "$QCP" ] && A_QVOLARCH="$(grep libvolumelistener.so "$hwserv" | head -n1 | awk '{ if ($6 ~ /lib64/) { print "64" } else if ($6 ~ /lib/) { print "32" } }')"; [ -n "$QCP" ] && A_QPHALARCH="$(grep "audio\.primary\..*\.so" "$hwserv" 2>/dev/null | head -n1 | awk '{ if ($6 ~ /lib64/) { print "64" } else if ($6 ~ /lib/) { print "32" } }')"
     fi
   done
-  AUS="$(find /system/lib /vendor/lib -maxdepth 1 -type f \( -name "libalsautils.so" -o -name "libalsautilsv2.so" -o -name "libalsautils_sec.so" \))"; AUS64="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f \( -name "libalsautils.so" -o -name "libalsautilsv2.so" -o -name "libalsautils_sec.so" \))"; ARS="$(find /system/lib -maxdepth 1 -type f -name "libaudio-resampler.so" -o -name "libaudioresampler.so")"; ARS64="$(find /system/lib64 -maxdepth 1 -type f -name "libaudio-resampler.so" -o -name "libaudioresampler.so")"; APS="$(find /system/lib -maxdepth 1 -type f -name "libaudioprocessing.so")"; APS64="$(find /system/lib64 -maxdepth 1 -type f -name "libaudioprocessing.so")"; SPX="$(find /system/lib* /vendor/lib* -maxdepth 1 -type f -name "libspeexresampler.so")"; APR="$(find /vendor/lib/soundfx -maxdepth 1 -type f -name "libaudiopreprocessing.so")"; APR64="$(find /vendor/lib64/soundfx -maxdepth 1 -type f -name "libaudiopreprocessing.so")"; AROUT="$(find /system/lib* /vendor/lib* /odm/lib* -maxdepth 1 -type f -name "libaudioroute*.so" 2>/dev/null)"; AHAENDK="$(find /system/lib64 -maxdepth 1 -type f -name "android.hardware.audio.effect-V.*-ndk.so")"; ACOSRV="$(find /system/lib64 /system_ext/lib64 /vendor/lib64 /odm/lib64 -maxdepth 1 -type f -name "com.android.media.audioserver-aconfig-cc.so")"; AMFC="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "aconfig_mediacodec_flags_c_lib.so")"; BTDEF="$(find /system/lib/hw /vendor/lib/hw -maxdepth 1 -type f -name "bluetooth.default.so")"; BTDEF64="$(find /system/lib64/hw /vendor/lib64/hw -maxdepth 1 -type f -name "bluetooth.default.so")"; ASRV="$(find /system/bin -maxdepth 1 -type f -name "audioserver")"; [ -n "$A_ALSARCH" ] && { [ "$A_ALSARCH" == "32" ] && AUS_PROCEED=true; [ "$A_ALSARCH" == "64" ] && AUS64_PROCEED=true; } || { AUS_PROCEED=true; AUS64_PROCEED=true; }; [ -n "$A_PROCARCH" ] && { [ "$A_PROCARCH" == "32" ] && APS_PROCEED=true; [ "$A_PROCARCH" == "64" ] && APS64_PROCEED=true; } || { APS_PROCEED=true; APS64_PROCEED=true; }
-  [ -n "$QCP" ] && { ACONF="$(find $(pfind "etc") -maxdepth 1 -type f -name "audio_configs*.xml" 2>/dev/null)"; RMA="$(find $(pfind "etc") -maxdepth 3 -type f -name "resourcemanager*.xml" 2>/dev/null)"; PWH="$(find $(pfind "etc") -maxdepth 1 -type f -name "powerhint*.xml" 2>/dev/null)"; APLIS="$(find $(pfind "etc") -maxdepth 1 -type f -name "audio_platform_info*.xml" 2>/dev/null)"; UKV="$(find $(pfind "etc") -maxdepth 3 -type f -name "usecaseKvManager*.xml" 2>/dev/null)"; KVH="$(find $(pfind "etc") -maxdepth 1 -type f -name "kvh2xml.xml" 2>/dev/null)"; BEC="$(find $(pfind "etc") -maxdepth 1 -type f -name "backend_conf*.xml" 2>/dev/null)"; AMCP="$(find $(pfind "etc") -maxdepth 3 -type f -name "audio_module_config_primary.xml" 2>/dev/null)"; VL="$(find /vendor/lib/soundfx -maxdepth 1 -type f -name "libvolumelistener.so")"; VL64="$(find /vendor/lib64/soundfx -maxdepth 1 -type f -name "libvolumelistener.so")"; AGMD="$(find /system/lib /system/lib64 /vendor/lib /vendor/lib64 /odm/lib /odm/lib64 -maxdepth 1 -type f -name "libagmdevice.so" 2>/dev/null)"; APAL="$(find /system/lib /vendor/lib -maxdepth 1 -type f -name "libar-pal.so")"; APAL64="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "libar-pal.so")"; PHAL="$(find /vendor/lib/hw -maxdepth 1 -type f -name "audio.primary.*.so" ! -name "audio.primary.default.so")"; PHAL64="$(find /vendor/lib64/hw -maxdepth 1 -type f -name "audio.primary.*.so" ! -name "audio.primary.default.so")"; QHAL="$(find /vendor/lib64/hw -maxdepth 1 -type f -name "libaudiocorehal.qti.so")"; CMP64="$(find /system/lib64 -maxdepth 1 -type f -name "libcodec2_soft_mp3dec.so")"; FLA64="$(find /system/lib64 -maxdepth 1 -type f -name "libcodec2_soft_flacdec.so")"; SMP="$(find /vendor/lib -maxdepth 1 -type f -name "libstagefright_soft_mp3dec.so")"; PERFLO="$(find /system/lib64 /vendor/lib64 /odm/lib64 -maxdepth 1 -type f -name "libqti-perfd-client.so" 2>/dev/null)"; BTBUN="$(find /vendor/lib64 -maxdepth 1 -type f -name "lib_bt_bundle.so")"; QDCCE="$(find /sys/module -maxdepth 3 -name "*collapse_enable")"; QMFAM="$(find /sys/module -maxdepth 3 -name "*force_advanced_mode")"; QHPFM="$(find /sys/module -maxdepth 3 -name "*high_perf_mode")"; QSMAS="$(find /sys/module -maxdepth 3 -name "*maximum_substreams")"; [ -n "$A_QVOLARCH" ] && { [ "$A_QVOLARCH" == "32" ] && VL_PROCEED=true; [ "$A_QVOLARCH" == "64" ] && VL64_PROCEED=true; } || { VL_PROCEED=true; VL64_PROCEED=true; }; [ -n "$A_QPHALARCH" ] && { [ "$A_QPHALARCH" == "32" ] && PHAL_PROCEED=true; [ "$A_QPHALARCH" == "64" ] && PHAL64_PROCEED=true; } || { PHAL_PROCEED=true; PHAL64_PROCEED=true; }; }
-  [ -n "$TENZ" ] && { TPC="$(find $(pfind "etc")  -maxdepth 3 -type f -name "audio_platform_configuration.xml" 2>/dev/null)"; TCC="$(find $(pfind "etc")  -maxdepth 3 -type f -name "tuning_constraints_combination.xml" 2>/dev/null)"; TAOCF="$(find /vendor/lib64 -maxdepth 1 -type f -name "aoc_aconfig_flags_c_lib.so")"; TAFH3="$(find /vendor/lib64 -maxdepth 1 -type f -name "libAlgFx_HiFi3z.so")"; }
-  [ -n "$MTK" ] && { MIXA="$(find $(pfind "etc")  -maxdepth 3 -type f -name "*audio_device*.xml" 2>/dev/null)"; MPDRC="$(find $(pfind "etc")  -maxdepth 2 -type f -name "PlaybackDRC_AudioParam.xml" 2>/dev/null)"; MPLAT="$(find $(pfind "etc")  -maxdepth 1 -type f -name "audio_em.xml" 2>/dev/null)"; MAUP="$(find $(pfind "etc")  -maxdepth 2 -type f -name "AudioParamOptions*.xml" 2>/dev/null)"; }
-  [ -n "$EXY" ] && { SAPA="$(find $(pfind "etc")  -maxdepth 1 -type f -name "*sapa_feature*.xml" 2>/dev/null)"; MIXG="$(find $(pfind "etc")  -maxdepth 1 -type f -name "*mixer_gains*.xml" 2>/dev/null)"; }
-  [ "$OEM" == "Oneplus" ] && { OMD="$(find $(pfind "etc")  -maxdepth 2 -type f \( -name "Multimedia_Daemon_Ext*.xml" -o -name "Multimedia_Daemon_List*.xml" \) 2>/dev/null)"; OAF="$(find $(pfind "etc")  -maxdepth 2 -type f -name "oplus_audio_features.xml" 2>/dev/null)"; }
-  [ "$OEM" == "Xiaomi" ] && { MIR="$(find /vendor/lib -maxdepth 1 -type f -name "libresampler.so")"; MIR64="$(find /vendor/lib64 -maxdepth 1 -type f -name "libresampler.so")"; }
-  [ "$OEM" == "Sony" ] && { SDS="$(find /vendor/lib -maxdepth 1 -type f -name "libsonydseehxwrapper.so")"; SDS64="$(find /vendor/lib64 -maxdepth 1 -type f -name "libsonydseehxwrapper.so")"; }
-  [ "$OEM" == "Samsung" ] && { SSTP="$(find $(pfind "etc")  -maxdepth 1 -type f -name "stage_policy.conf" 2>/dev/null)"; SSB20="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "lib_SoundBooster_ver2060.so")"; }  
-  { SDAT="$(find /data/app -maxdepth 4 -type f \( -name "libumeng-spy.so" -o -name "libweibosdkcore.so" -o -name "libwind.so" \))"; FII="$(find /data/app -maxdepth 4 -type f -name "libhello-jni.so")"; FII2="$(find /data/app -maxdepth 4 -type f -name "libeqLib.so")"; UPP="$(find /data/app -maxdepth 4 -type f -name "libswresample-3.3.100.so")"; APPM="$(find /data/app -maxdepth 4 -type f -name "libicudata_sv_apple.so")"; POW="$(find /data/app -maxdepth 4 -type f -name "libffmpeg_neon.so")"; POW2="$(find /data/app -maxdepth 4 -type f -name "libpowerampcore.so")"; LUSB="$(find /data/app -maxdepth 4 -type f \( -name "libauusb.so" -o -name "libUsbAudio.so" -o -name "libusb.so" \))"; }
-  { HRDW="$(find /vendor/lib -maxdepth 1 -type f -name "libhardware*.so")"; HRDW64="$(find /vendor/lib64 -maxdepth 1 -type f -name "libhardware*.so")"; MEDU="$(find /system/lib /vendor/lib -maxdepth 1 -type f -name "libmediautils*.so")"; MEDU64="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "libmediautils*.so")"; APM="$(find /system/lib -maxdepth 1 -type f -name "libaudiopolicymanager.so")"; APM64="$(find /system/lib64 -maxdepth 1 -type f -name "libaudiopolicymanager.so")"; APOLS="$(find /system/lib /vendor/lib -maxdepth 1 -type f -name "libaudiopolicyservice.so")"; APOLS64="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "libaudiopolicyservice.so")"; AGM="$(find /system/lib /vendor/lib -maxdepth 1 -type f -name "libagm.so")"; AGM64="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "libagm.so")"; BASQ="$(find /system/lib /vendor/lib -maxdepth 1 -type f -name "libbluetooth_audio_session_qti_2_1.so")"; BASQ64="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "libbluetooth_audio_session_qti_2_1.so")"; BASAQ="$(find /system/lib /vendor/lib -maxdepth 1 -type f -name "libbluetooth_audio_session_aidl_qti.so")"; BASAQ64="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "libbluetooth_audio_session_aidl_qti.so")"; BASA="$(find /system/lib /vendor/lib -maxdepth 1 -type f -name "libbluetooth_audio_session_aidl.so")"; BASA64="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "libbluetooth_audio_session_aidl.so")"; }
+  { AUS="$(find /system/lib /vendor/lib -maxdepth 1 -type f \( -name "libalsautils.so" -o -name "libalsautilsv2.so" -o -name "libalsautils_sec.so" \) 2>/dev/null)"; AUS64="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f \( -name "libalsautils.so" -o -name "libalsautilsv2.so" -o -name "libalsautils_sec.so" \) 2>/dev/null)"; ARS="$(find /system/lib -maxdepth 1 -type f -name "libaudio-resampler.so" -o -name "libaudioresampler.so" 2>/dev/null)"; ARS64="$(find /system/lib64 -maxdepth 1 -type f -name "libaudio-resampler.so" -o -name "libaudioresampler.so" 2>/dev/null)"; APS="$(find /system/lib -maxdepth 1 -type f -name "libaudioprocessing.so" 2>/dev/null)"; APS64="$(find /system/lib64 -maxdepth 1 -type f -name "libaudioprocessing.so" 2>/dev/null)"; SPX="$(find /system/lib* /vendor/lib* -maxdepth 1 -type f -name "libspeexresampler.so" 2>/dev/null)"; APR="$(find /vendor/lib/soundfx -maxdepth 1 -type f -name "libaudiopreprocessing.so" 2>/dev/null)"; APR64="$(find /vendor/lib64/soundfx -maxdepth 1 -type f -name "libaudiopreprocessing.so" 2>/dev/null)"; AROUT="$(find /system/lib* /vendor/lib* /odm/lib* -maxdepth 1 -type f -name "libaudioroute*.so" 2>/dev/null)"; AHAENDK="$(find /system/lib64 -maxdepth 1 -type f -name "android.hardware.audio.effect-V.*-ndk.so" 2>/dev/null)"; ACOSRV="$(find /system/lib64 /system_ext/lib64 /vendor/lib64 /odm/lib64 -maxdepth 1 -type f -name "com.android.media.audioserver-aconfig-cc.so" 2>/dev/null)"; AMFC="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "aconfig_mediacodec_flags_c_lib.so" 2>/dev/null)"; BTDEF="$(find /system/lib/hw /vendor/lib/hw -maxdepth 1 -type f -name "bluetooth.default.so" 2>/dev/null)"; BTDEF64="$(find /system/lib64/hw /vendor/lib64/hw -maxdepth 1 -type f -name "bluetooth.default.so" 2>/dev/null)"; ASRV="$(find /system/bin -maxdepth 1 -type f -name "audioserver" 2>/dev/null)"; ACLI64="$(find /system/lib64 -maxdepth 1 -type f -name "libaudioclient.so" 2>/dev/null)"; AUTIL64="$(find /system/lib64 -maxdepth 1 -type f -name "libaudioutils.so" 2>/dev/null)"; [ -n "$A_PROCARCH" ] && { [ "$A_PROCARCH" == "32" ] && APS_PROCEED=true; [ "$A_PROCARCH" == "64" ] && APS64_PROCEED=true; } || { APS_PROCEED=true; APS64_PROCEED=true; }; [ -n "$A_ALSARCH" ] && { [ "$A_ALSARCH" == "32" ] && AUS_PROCEED=true; [ "$A_ALSARCH" == "64" ] && AUS64_PROCEED=true; } || { AUS_PROCEED=true; AUS64_PROCEED=true; }; { strings "$APS64" 2>/dev/null | awk '/_ZN7android17AudioResamplerDynIfffE15createKaiserFirERNS1_9ConstantsEdiid/{a=1} /_ZN7android17AudioResamplerDynIssiE15createKaiserFirERNS1_9ConstantsEdiid/{b=1} /_ZN7android17AudioResamplerDynIisiE15createKaiserFirERNS1_9ConstantsEdiid/{c=1} /_ZN7android17AudioResamplerDynIfffE9Constants3setEiiii/{d=1} /_ZN7android17AudioResamplerDynIssiE9Constants3setEiiii/{e=1} /_ZN7android17AudioResamplerDynIisiE9Constants3setEiiii/{f=1} END{exit !(a&&b&&c&&d&&e&&f)}'; } && APS_CHECK=pass || APS_CHECK=; { strings "$ACLI64" 2>/dev/null | awk '/_ZN7android10AudioTrack9setVolumeEf/{a=1} /_ZN7android10AudioTrack9setVolumeEff/{b=1} /_ZN7android10AudioTrackD1Ev/{c=1} END{exit !(a&&b&&c)}'; } && ACLI_CHECK=pass || ACLI_CHECK=; { strings "$AUTIL64" 2>/dev/null | awk '/adjust_channels/{a=1} /adjust_selected_channels/{b=1} /adjust_channels_non_destructive/{c=1} END{exit !(a&&b&&c)}'; } && AUTIL_CHECK=pass || AUTIL_CHECK=; [ -n "$APS_CHECK" ] && [ -n "$ACLI_CHECK" ] && [ -n "$AUTIL_CHECK" ] && MANGPASS=1 || MANGPASS=; }; [ -n "$QCP" ] && { ACONF="$(find $(pfind "etc") -maxdepth 1 -type f -name "audio_configs*.xml" 2>/dev/null)"; RMA="$(find $(pfind "etc") -maxdepth 3 -type f -name "resourcemanager*.xml" 2>/dev/null)"; PWH="$(find $(pfind "etc") -maxdepth 1 -type f -name "powerhint*.xml" 2>/dev/null)"; APLIS="$(find $(pfind "etc") -maxdepth 1 -type f -name "audio_platform_info*.xml" 2>/dev/null)"; UKV="$(find $(pfind "etc") -maxdepth 3 -type f -name "usecaseKvManager*.xml" 2>/dev/null)"; KVH="$(find $(pfind "etc") -maxdepth 1 -type f -name "kvh2xml.xml" 2>/dev/null)"; BEC="$(find $(pfind "etc") -maxdepth 1 -type f -name "backend_conf*.xml" 2>/dev/null)"; AMCP="$(find $(pfind "etc") -maxdepth 3 -type f -name "audio_module_config_primary.xml" 2>/dev/null)"; VL="$(find /vendor/lib/soundfx -maxdepth 1 -type f -name "libvolumelistener.so" 2>/dev/null)"; VL64="$(find /vendor/lib64/soundfx -maxdepth 1 -type f -name "libvolumelistener.so" 2>/dev/null)"; AGMD="$(find /system/lib /system/lib64 /vendor/lib /vendor/lib64 /odm/lib /odm/lib64 -maxdepth 1 -type f -name "libagmdevice.so" 2>/dev/null)"; APAL="$(find /system/lib /vendor/lib -maxdepth 1 -type f -name "libar-pal.so" 2>/dev/null)"; APAL64="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "libar-pal.so" 2>/dev/null)"; PHAL="$(find /vendor/lib/hw -maxdepth 1 -type f -name "audio.primary.*.so" ! -name "audio.primary.default.so" 2>/dev/null)"; PHAL64="$(find /vendor/lib64/hw -maxdepth 1 -type f -name "audio.primary.*.so" ! -name "audio.primary.default.so" 2>/dev/null)"; QHAL="$(find /vendor/lib64/hw -maxdepth 1 -type f -name "libaudiocorehal.qti.so" 2>/dev/null)"; CMP64="$(find /system/lib64 -maxdepth 1 -type f -name "libcodec2_soft_mp3dec.so" 2>/dev/null)"; FLA64="$(find /system/lib64 -maxdepth 1 -type f -name "libcodec2_soft_flacdec.so" 2>/dev/null)"; SMP="$(find /vendor/lib -maxdepth 1 -type f -name "libstagefright_soft_mp3dec.so" 2>/dev/null)"; PERFLO="$(find /system/lib64 /vendor/lib64 /odm/lib64 -maxdepth 1 -type f -name "libqti-perfd-client.so" 2>/dev/null)"; BTBUN="$(find /vendor/lib64 -maxdepth 1 -type f -name "lib_bt_bundle.so" 2>/dev/null)"; QDCCE="$(find /sys/module -maxdepth 3 -name "*collapse_enable")"; QMFAM="$(find /sys/module -maxdepth 3 -name "*force_advanced_mode")"; QHPFM="$(find /sys/module -maxdepth 3 -name "*high_perf_mode")"; QSMAS="$(find /sys/module -maxdepth 3 -name "*maximum_substreams")"; [ -n "$A_QVOLARCH" ] && { [ "$A_QVOLARCH" == "32" ] && VL_PROCEED=true; [ "$A_QVOLARCH" == "64" ] && VL64_PROCEED=true; } || { VL_PROCEED=true; VL64_PROCEED=true; }; [ -n "$A_QPHALARCH" ] && { [ "$A_QPHALARCH" == "32" ] && PHAL_PROCEED=true; [ "$A_QPHALARCH" == "64" ] && PHAL64_PROCEED=true; } || { PHAL_PROCEED=true; PHAL64_PROCEED=true; }; }; [ -n "$TENZ" ] && { TPC="$(find $(pfind "etc") -maxdepth 3 -type f -name "audio_platform_configuration.xml" 2>/dev/null)"; TCC="$(find $(pfind "etc") -maxdepth 3 -type f -name "tuning_constraints_combination.xml" 2>/dev/null)"; TAOCF="$(find /vendor/lib64 -maxdepth 1 -type f -name "aoc_aconfig_flags_c_lib.so" 2>/dev/null)"; TAFH3="$(find /vendor/lib64 -maxdepth 1 -type f -name "libAlgFx_HiFi3z.so" 2>/dev/null)"; }; [ -n "$MTK" ] && { MIXA="$(find $(pfind "etc") -maxdepth 3 -type f -name "*audio_device*.xml" 2>/dev/null)"; MPDRC="$(find $(pfind "etc") -maxdepth 2 -type f -name "PlaybackDRC_AudioParam.xml" 2>/dev/null)"; MPLAT="$(find $(pfind "etc") -maxdepth 1 -type f -name "audio_em.xml" 2>/dev/null)"; MAUP="$(find $(pfind "etc") -maxdepth 2 -type f -name "AudioParamOptions*.xml" 2>/dev/null)"; }; [ -n "$EXY" ] && { SAPA="$(find $(pfind "etc") -maxdepth 1 -type f -name "*sapa_feature*.xml" 2>/dev/null)"; MIXG="$(find $(pfind "etc") -maxdepth 1 -type f -name "*mixer_gains*.xml" 2>/dev/null)"; }; [ "$OEM" == "Oneplus" ] && { OMD="$(find $(pfind "etc") -maxdepth 2 -type f \( -name "Multimedia_Daemon_Ext*.xml" -o -name "Multimedia_Daemon_List*.xml" \) 2>/dev/null)"; OAF="$(find $(pfind "etc") -maxdepth 2 -type f -name "oplus_audio_features.xml" 2>/dev/null)"; }; [ "$OEM" == "Xiaomi" ] && { MIR="$(find /vendor/lib -maxdepth 1 -type f -name "libresampler.so" 2>/dev/null)"; MIR64="$(find /vendor/lib64 -maxdepth 1 -type f -name "libresampler.so" 2>/dev/null)"; }; [ "$OEM" == "Sony" ] && { SDS="$(find /vendor/lib -maxdepth 1 -type f -name "libsonydseehxwrapper.so" 2>/dev/null)"; SDS64="$(find /vendor/lib64 -maxdepth 1 -type f -name "libsonydseehxwrapper.so" 2>/dev/null)"; }; [ "$OEM" == "Samsung" ] && { SSTP="$(find $(pfind "etc") -maxdepth 1 -type f -name "stage_policy.conf" 2>/dev/null)"; SSB20="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "lib_SoundBooster_ver2060.so" 2>/dev/null)"; }; { SDAT="$(find /data/app -maxdepth 4 -type f \( -name "libumeng-spy.so" -o -name "libweibosdkcore.so" -o -name "libwind.so" \) 2>/dev/null)"; FII="$(find /data/app -maxdepth 4 -type f -name "libhello-jni.so" 2>/dev/null)"; FII2="$(find /data/app -maxdepth 4 -type f -name "libeqLib.so" 2>/dev/null)"; UPP="$(find /data/app -maxdepth 4 -type f -name "libswresample-3.3.100.so" 2>/dev/null)"; APPM="$(find /data/app -maxdepth 4 -type f -name "libicudata_sv_apple.so" 2>/dev/null)"; POW="$(find /data/app -maxdepth 4 -type f -name "libffmpeg_neon.so" 2>/dev/null)"; POW2="$(find /data/app -maxdepth 4 -type f -name "libpowerampcore.so" 2>/dev/null)"; LUSB="$(find /data/app -maxdepth 4 -type f \( -name "libauusb.so" -o -name "libUsbAudio.so" -o -name "libusb.so" \) 2>/dev/null)"; }; { HRDW="$(find /vendor/lib -maxdepth 1 -type f -name "libhardware*.so" 2>/dev/null)"; HRDW64="$(find /vendor/lib64 -maxdepth 1 -type f -name "libhardware*.so" 2>/dev/null)"; MEDU="$(find /system/lib /vendor/lib -maxdepth 1 -type f -name "libmediautils*.so" 2>/dev/null)"; MEDU64="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "libmediautils*.so" 2>/dev/null)"; APM="$(find /system/lib -maxdepth 1 -type f -name "libaudiopolicymanager.so" 2>/dev/null)"; APM64="$(find /system/lib64 -maxdepth 1 -type f -name "libaudiopolicymanager.so" 2>/dev/null)"; APOLS="$(find /system/lib /vendor/lib -maxdepth 1 -type f -name "libaudiopolicyservice.so" 2>/dev/null)"; APOLS64="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "libaudiopolicyservice.so" 2>/dev/null)"; AGM="$(find /system/lib /vendor/lib -maxdepth 1 -type f -name "libagm.so" 2>/dev/null)"; AGM64="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "libagm.so" 2>/dev/null)"; BASQ="$(find /system/lib /vendor/lib -maxdepth 1 -type f -name "libbluetooth_audio_session_qti_2_1.so" 2>/dev/null)"; BASQ64="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "libbluetooth_audio_session_qti_2_1.so" 2>/dev/null)"; BASAQ="$(find /system/lib /vendor/lib -maxdepth 1 -type f -name "libbluetooth_audio_session_aidl_qti.so" 2>/dev/null)"; BASAQ64="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "libbluetooth_audio_session_aidl_qti.so" 2>/dev/null)"; BASA="$(find /system/lib /vendor/lib -maxdepth 1 -type f -name "libbluetooth_audio_session_aidl.so" 2>/dev/null)"; BASA64="$(find /system/lib64 /vendor/lib64 -maxdepth 1 -type f -name "libbluetooth_audio_session_aidl.so" 2>/dev/null)"; }
   ! command -v xargs >/dev/null 2>&1 && CONFLCT="$(find "$NVBASE"/modules/* -mindepth 1 -maxdepth 4 -type f \( -name "*audio_effects*.conf" -o -name "*audio_effects*.xml" -o -name "*audio_*policy*.xml" -o -name "mixer_paths*.xml" \) ! -path "$NVBASE/modules_update/$MODID/*" ! -path "$NVBASE/modules_update/*ainur_silmaril*" ! -path "$NVBASE/modules/$MODID/*" ! -path "$NVBASE/modules/*ainur_silmaril*" 2>/dev/null)" || CONFLCT="$(find "$NVBASE"/modules/ -mindepth 1 -maxdepth 1 -type d -print0 | xargs -0 -P "$CORC" sh -c 'for dir; do find "$dir" -mindepth 1 -maxdepth 4 -type f \( -name "*audio_effects*.conf" -o -name "*audio_effects*.xml" -o -name "*audio_*policy*.xml" -o -name "mixer_paths*.xml" \) ! -path "$NVBASE/modules_update/$MODID/*" ! -path "$NVBASE/modules_update/*ainur_silmaril*" ! -path "$NVBASE/modules/$MODID/*" ! -path "$NVBASE/modules/*ainur_silmaril*"; done' sh)"
   if [ -n "$CONFLCT" ] && ! echo "$CONFLCT" | grep -q '/aml/'; then
     for CONFILE in $CONFLCT; do
@@ -478,7 +538,7 @@ if ! $AML; then
     done
     set -- $cnfmod; mprint=$([ "$#" -gt 1 ] && echo "mods" || echo "mod"); ui_print " "; ui_print "! Conflicting audio$mprint found: $cnfmod!"; ui_print "  Install AudioModificationLibrary (AML) if"; ui_print "  conflicting audio$mprint support it."; ui_print "  Note that AML provides compatibility for"; ui_print "  a limited amount of files. Some contents"; ui_print "  between conflicting $mprint & SILMARIL may"; ui_print "  overlap and persist in canceling each";  ui_print "  other out."; sleep 1
   fi
-  curveout="$VALI/vc.xml"; mktouch "$curveout"; tar -xf "$MODPATH"/common/prep.tar.xz -C "$VALI" 2>/dev/null; tar -xf "$VALI"/tools.tar.xz -C "$VALI" 2>/dev/null; . "$VALI"/tools/install.sh; [ "$ROOT_MODE" == "KSUN" ] && mv -f "$VALI"/modulebg.png "$MODPATH" || rm -f "$VALI"/modulebg.png; [ -n "$APS64_PROCEED" ] && [ -z "$D_LIBS" ] && { for OFILE in ${ASRV}; do nest "$OFILE"; cp_ch "$ORIGDIR""$OFILE" "$FILE"; patchelf --add-needed libnorgothrond.so "$FILE"; done; }; TMD="$VALI/tmix.txt"; mktouch "$TMD"; tinymix dump 2>/dev/null >"$TMD"; SND="$(tinymix cname)"; [ -n "$QCP" ] && MAXAG="$(tinymix get 'HPHL Volume' 2>/dev/null | awk -F'[>)]' '{print $2}')" && sed -i "s/Range from 0 to XX/Range from 0 to $MAXAG/" "$MODPATH"/silmaril_useroptions
+  curveout="$VALI/vc.xml"; mktouch "$curveout"; tar -xf "$MODPATH"/common/prep.tar.xz -C "$VALI" 2>/dev/null; tar -xf "$VALI"/tools.tar.xz -C "$VALI" 2>/dev/null; . "$VALI"/tools/install.sh; [ "$ROOT_MODE" == "KSUN" ] && mv -f "$VALI"/modulebg.png "$MODPATH" || rm -f "$VALI"/modulebg.png; [ -n "$APS64_PROCEED" ] && [ -n "$U_AINUV2" ] && [ -z "$D_LIBS" ] && { for OFILE in ${ASRV}; do nest "$OFILE"; cp_ch "$ORIGDIR""$OFILE" "$FILE"; patchelf --add-needed libnorgothrond.so "$FILE"; done; }; TMD="$VALI/tmix.txt"; mktouch "$TMD"; tinymix dump 2>/dev/null >"$TMD"; SND="$(tinymix cname)"; [ -n "$QCP" ] && MAXAG="$(tinymix get 'HPHL Volume' 2>/dev/null | awk -F'[>)]' '{print $2}')" && sed -i "s/Range from 0 to XX/Range from 0 to $MAXAG/" "$MODPATH"/silmaril_useroptions
   [ -f "$AUO" ] && UVER=$(grep_prop UVER $AUO); ui_print " "; ui_print " - Reading UserOptions"
   if [ ! -f "$AUO" ]; then
     ui_print "   No silmaril_useroptions detected !"; ui_print "   Creating useroptions in internal storage..."; ui_print "   Using specified options:"; cp -f "$MODPATH"/silmaril_useroptions "$AUO"; sleep 0.5
@@ -491,8 +551,8 @@ if ! $AML; then
 else
   set_perm_recursive "$VALI"/tools/arm64 0 0 0755 0755; chmod +x "$VALI"/tools/arm64/*; [ -f "$AUO" ] && UVER=$(grep_prop UVER $AUO); ui_print " "; ui_print " - Reading UserOptions"; process_uo; sleep 0.5; ui_print " "; ui_print " "; ui_print "- Installing [$MODNAME $MODVER] to AML"
 fi
-$AML && { . "$MODPATH"/files/helluin.sh; . "$MODPATH"/files/laurelin.sh; } || { . "$MODPATH"/common/helluin.sh; . "$MODPATH"/common/laurelin.sh; }
-if ! $AML; then
+[ "$AML" = "true" ] && { [ -z "$D_APOLICY" ] && . "$MODPATH"/files/helluin.sh; . "$MODPATH"/files/laurelin.sh; } || { [ -z "$D_APOLICY" ] && . "$MODPATH"/common/helluin.sh; . "$MODPATH"/common/laurelin.sh; }
+if [ "$AML" = "false" ]; then
   . "$MODPATH"/common/earendil.sh
   if [ -n "$U_VCRE" ]; then
     for OFILE in ${DVT}; do
@@ -566,7 +626,7 @@ if ! $AML; then
     purge
   fi
   if [ -n "$QCP" ]; then
-    if [ -n "$APLIS" ]; then
+    if [ -n "$APLIS" ] && [ -z "$D_HAL" ]; then
       ui_print " "; ui_print " - Patching HAL platform interface"
       for OFILE in ${APLIS}; do
         nest "$OFILE"; cp_ch "$ORIGDIR""$OFILE" "$FILE"; format_file "$FILE"
@@ -603,7 +663,7 @@ if ! $AML; then
       done
       purge
     fi
-    if [ -n "$ACONF" ]; then
+    if [ -n "$ACONF" ] && [ -z "$D_HAL" ]; then
       ui_print " "; ui_print " - Patching HAL audioconfig interface"
       for OFILE in ${ACONF}; do
         nest "$OFILE"; cp_ch "$ORIGDIR""$OFILE" "$FILE"; format_file "$FILE"
@@ -656,7 +716,7 @@ if ! $AML; then
       done
       purge
     fi
-    if [ -n "$RMA" ]; then
+    if [ -n "$RMA" ] && [ -z "$D_HAL" ]; then
       ui_print " "; ui_print " - Patching ARE APM interface"
       for OFILE in ${RMA}; do
         nest "$OFILE"; cp_ch "$ORIGDIR""$OFILE" "$FILE"; format_file "$FILE"
@@ -745,7 +805,7 @@ if ! $AML; then
         purge
       fi
     fi
-    if [ -n "$AMCP" ]; then
+    if [ -n "$AMCP" ] && [ -z "$D_APOLICY" ]; then
       if [ -n "$Q_CBIT_PROCEED" ] || [ -n "$U_APDBR" ] || [ -n "$Q_DSPOD" ]; then
         for OFILE in ${AMCP}; do
           nest "$OFILE"; cp_ch "$ORIGDIR""$OFILE" "$FILE"; format_file "$FILE"
@@ -836,18 +896,6 @@ if ! $AML; then
         for name in "DataLogging" "Equalizer" "Asphere" "Virtualizer_Switch" "Reverb_Switch" "PBE_Switch" "BASS_BOOST_Switch" "MISOUND_HPH_EQ_ENABLE" "MISOUND_HPH_MUSICMODE_ENABLE" "MISOUND_HPH_MODULE_SWITCH" "MISOUND_HPH_SWITCH" "MISOUND_HPH_EARCOMP_ENABLE"; do
           sed -i -e "/<KEY name=\"$name\"/,/<\/KEY>/ s/<VALUE val=\"0x1\" name=\"On\"\/>/<VALUE val=\"0x0\" name=\"On\"\/>/" "$FILE"
         done
-        if [ "$OEM" == "Xiaomi" ]; then
-          for name in "MISOUND_HPH_EARCOMP_AGEMODE" "MISOUND_HPH_STEREO_ENHANCE"; do
-            for v in 0x1 0x2 0x3; do
-              sed -i -e "/<KEY name=\"$name\"/,/<\/KEY>/ s/<VALUE val=\"$v\" name=\"$v\"\/>/<VALUE val=\"0x0\" name=\"$v\"\/>/" "$FILE"
-            done
-          done
-          if [ -z "$U_BT_KEEPFX" ] || [ -z "$U_OEM_KEEPFX" ]; then
-            for name in "MISOUND_SPATIAL_MODULE_ENABLE" "MISOUND_SPATIAL_HEADTRACK_ENABLE" "MISOUND_SPATIAL_SURROUND_ENABLE"; do
-              sed -i -e "/<KEY name=\"$name\"/,/<\/KEY>/ s/<VALUE val=\"0x1\" name=\"On\"\/>/<VALUE val=\"0x0\" name=\"On\"\/>/" "$FILE"
-            done
-          fi
-        fi
       done
       purge
     fi
@@ -867,7 +915,7 @@ if ! $AML; then
     if find /vendor/etc/sensors/registry -maxdepth 1 -type f \( -name "komodo_*.reg" -o -name "caiman_*.reg" -o -name "tokay_*.reg" \) 2>/dev/null; then
       mv -f "$VALI"/_ "$MODPATH"/vendor/bin/hw/android.hardware.audio.service-aidl.aoc; T_AOC=1
     fi
-    if [ -n "$TPC" ]; then
+    if [ -n "$TPC" ] && [ -z "$D_HAL" ]; then
       for OFILE in ${TPC}; do
         nest "$OFILE"; cp_ch "$ORIGDIR""$OFILE" "$FILE"; format_file "$FILE"
         case $T_CSMPL in "SR_176P4K") MIX_RS=176400 ;; "SR_192K") MIX_RS=192000 ;; *) MIX_RS=96000 ;; esac; sed -i "s/MaxSamplingRate=.*/MaxSamplingRate=$MIX_RS/" "$FILE"
@@ -876,7 +924,7 @@ if ! $AML; then
     fi
   fi
   if [ -n "$MTK" ]; then
-    if [ -n "$MPLAT" ]; then
+    if [ -n "$MPLAT" ] && [ -z "$D_HAL" ]; then
       ui_print " "; ui_print " - Patching HAL config"
       for OFILE in ${MPLAT}; do
         nest "$OFILE"; cp_ch "$ORIGDIR""$OFILE" "$FILE"; format_file "$FILE"
@@ -946,10 +994,10 @@ if ! $AML; then
     done
     purge
   fi
-  [ "$ROOT_MODE" == "MAG_K" ] && mkdir -p "$MODPATH"/root && for PART in $PARTITIONS; do mv -f "$MODPATH"/system"$PART" "$MODPATH"/root; done; echo 'resetprop -n --file $MODPATH/system.prop' >> "$SERV"; echo 'resetprop -p --file $MODPATH/persist.prop' >> "$SERV"; [ -n "$SDAT" ] && { sed -i -e '$a NOP="$(find /data/app -maxdepth 5 -type f \( -name "libumeng-spy.so" -o -name "libweibosdkcore.so" -o -name "libwind.so" \))"\nfor FILE in $NOP; do\n  [ ! -f "$FILE.nop" ] && mv -f "$FILE" "$FILE".nop\ndone\n' "$SERV"; }; awk -v services="$(echo "$ASERV" | tr '\n' ' ' | sed 's/ *$//')" '{print} END {print "(sleep 69\n  for service in " services "; do\n    for pid in $(pidof $service); do\n      renice -n -6 \"$pid\"; ionice -c 1 -n 3 -p \"$pid\"\n    done\n  done\n)&"}' "$SERV" > tmp && mv tmp "$SERV"
+  [ "$ROOT_MODE" == "MAG_K" ] && { mkdir -p "$MODPATH"/root && for PART in $PARTITIONS; do mv -f "$MODPATH"/system"$PART" "$MODPATH"/root; done; }; [ -n "$SDAT" ] && { sed -i -e '$a NOP="$(find /data/app -maxdepth 5 -type f \( -name "libumeng-spy.so" -o -name "libweibosdkcore.so" -o -name "libwind.so" \))"\nfor FILE in $NOP; do\n  [ ! -f "$FILE.nop" ] && mv -f "$FILE" "$FILE".nop\ndone\n' "$SERV"; }
 fi
-[ -z "$D_MIXERS" ] && { $AML && . "$MODPATH"/files/telperion.sh || . "$MODPATH"/common/telperion.sh; }
-if ! $AML; then
+[ -z "$D_MIXERS" ] && { [ "$AML" = "true" ] && . "$MODPATH"/files/telperion.sh || . "$MODPATH"/common/telperion.sh; }
+if [ "$AML" = "false" ]; then
   sed -i "s/<MODID>/$MODID/" "$MODPATH"/.aml.sh
   for i in "earendil.sh"; do
     sed -i "/\. \"\$MODPATH\"\/common\/${i}/s/^/# /" "$MODPATH/common/nauglamir.sh"; rm -f "$MODPATH"/common/$i
@@ -957,6 +1005,6 @@ if ! $AML; then
   for i in "nauglamir.sh" "helluin.sh" "laurelin.sh" "telperion.sh"; do
     cp -f "$MODPATH"/common/$i "$MODPATH"/files/$i
   done
-  rm -f "$VALI"/vc.xml; rm -f "$VALI"/svc.xml; rm -f "$VALI"/db.xml; rm -f "$VALI"/_; rm -f "$VALI"/tools.tar.xz
+  rm -f "$VALI"/vc.xml; rm -f "$VALI"/svc.xml; rm -f "$VALI"/db.xml; rm -f "$VALI"/_; rm -f "$VALI"/tools.tar.xz; rm -f "$VALI"/libnorgothrond.so
 fi
 ##########################################################################################

@@ -1,5 +1,10 @@
 # Changelog
 
+## [20.13] - `2026-07-21`
+- Bootloop fix (hopefully)
+- Added more debug flags in UO
+- Various installer improvements & fixes
+
 ## [19.61] - `2026-07-15`
 - AINULINDALE v2
 - Various improvements & fixes

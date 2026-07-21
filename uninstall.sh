@@ -1,6 +1,5 @@
 # Don't modify anything after this
-rm -rf /data/property/*
-rm -f /data/media/0/*silmaril*
+rm -rf /data/property/*; rm -f /data/media/0/*silmaril* /sdcard/*silmaril* 2>/dev/null
 if [ -f "$INFO" ]; then
   while read -r LINE; do
     if [ "$(echo -n "$LINE" | tail -c 1)" == "~" ]; then

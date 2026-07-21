@@ -1,6 +1,6 @@
 # AINUR SILMARIL
 # UserOptions (UO)
-UVER=86
+UVER=89
 
 ##### INSTRUCTIONS #####
 #
@@ -41,7 +41,97 @@ UVER=86
 #
 
 
+
 ##### UNIVERSAL OPTIONS ####
+
+### U_AINUV2: AINULINDALE V2
+#
+#   AINULINDALE V2 integrates directly into android's native audio
+#   pipeline at the primitives layer, replacing key processing
+#   stages with custom implementations. Every stage is designed for
+#   deterministic low-latency execution, combining thread-local
+#   architecture, lock-free processing and SIMD acceleration to
+#   preserve the signal with exceptional transparency and fidelity:
+#
+#   Custom Bessel > custom Kaiser window coefficient generation
+#   by James34602 > machine-precision convergence
+#                 > minimizes numerical error during resampling
+#
+#   DC Blocker    > removes DC offset in real time
+#                 > preserves sub-bass phase response
+#                 > protects downstream DSP from offset buildup
+#
+#   TPDF Dither   > mathematically correct triangular dithering
+#                 > 2nd-order noise-shaped quantization
+#                 > transparent bit-depth reduction
+#
+#   Deferred Gain > preserves full internal signal precision
+#                 > applies attenuation only at final output
+#                 > maintains low-level DR at any volume
+#
+#   Soft Limiter  > true-peak aware oversampled protection
+#                 > transparent below threshold
+#                 > smooth analog-inspired saturation on overload
+#
+# 	             Might not work on some devices.
+# !          CAN RESULT IN BUGS/SOUND LOSS/BOOTLOOP               !
+#   SILMARIL performs the check during installation and will
+#   print a warning in case there are any potential issues
+#
+#   You can set *U_AINUV2=true* to use AINULINDALE V2 engine
+#
+U_AINUV2=
+
+### U_HL: SAMPLER HALF LENGTH
+#
+#   Variable resampling rate sampler is practically linear
+#   phase with a symmetrical impulse response that ensures
+#   the phase shift is proportional to the frequency. Half
+#   Length is the number of samples till IR center.
+#
+#   A shorter IR (smaller half length) allows for a faster
+#   transition between frequencies, resulting in a steeper
+#   filter response and potentially higher aliasing.
+#
+#   A longer impulse response (larger half length) allows
+#   for a more gradual transition and improves frequency
+#   selectivity. Additionally, a longer IR facilitates
+#   better attenuation of aliasing components, reducing
+#   unwanted artifacts in the signal. However, this comes
+#   at the cost of potentially higher latency.
+#
+#   Filter length = steepness = halflength*2
+#
+#   SILMARIL sets *960* taps polyphase filter, which can
+#   be considered as studio master quality.
+#
+# !       *960* taps might be too high for some devices          !
+# !        Leading to various sound issues & artifacts           !
+# !    If that's your case - set *U_HL* to *480* taps or less    !
+#
+U_HL=960
+
+### U_SBA: SAMPLER STOPBAND ATTENUATION
+#
+#   Sampling always alias - high frequency signals can fold
+#   back onto lower frequencies creating distortions. To
+#   mitigate that stopband attenuation is used. It can also
+#   slightly reduce noise interference and suppress aliasing
+#   from frequencies above the Nyquist limit.
+#
+#   By default, the maximum stopband value is limited to
+#   144dB (24bit). This remains relevant for most commonly
+#   used audio formats.
+#
+#   You can experiment setting *U_SBA* per format, however,
+#   since the output is always constrained by hardware's
+#   noise floor - best way is setting *U_SBA* value around
+#   device's SNR.
+#
+#   SILMARIL sets stopband attenuation to *127*, which is
+#   around the practical reach for most devices.
+#
+U_SBA=127
 
 ##
 ### U_VSTP: VOLUME SLIDER STEPS
@@ -88,61 +178,11 @@ U_VSTP=
 #   desired *U_VSTP* value. If no *U_VSTP* is set, the standard
 #   aosp value is used.
 #
-#   Possible *U_VCRE* values:
-#   *log lin cub*
+#   Possible *U_VCRE* values: *log lin cub*
 # 	*Ex: U_VSTP=log* for logarithmic curve
 #
 U_VCRE=
 ##
-
-### U_HL: SAMPLER HALF LENGTH
-#
-#   Variable resampling rate sampler is practically linear
-#   phase with a symmetrical impulse response that ensures
-#   the phase shift is proportional to the frequency. Half
-#   Length is the number of samples till IR center.
-#
-#   A shorter IR (smaller half length) allows for a faster
-#   transition between frequencies, resulting in a steeper
-#   filter response and potentially higher aliasing.
-#
-#   A longer impulse response (larger half length) allows
-#   for a more gradual transition and improves frequency
-#   selectivity. Additionally, a longer IR facilitates
-#   better attenuation of aliasing components, reducing
-#   unwanted artifacts in the signal. However, this comes
-#   at the cost of potentially higher latency.
-#
-#   Filter length = steepness = halflength*2
-#
-#   SILMARIL sets *960* taps polyphase filter, which can
-#   be considered as studio master quality.
-# ! This might be too much for some devices, leading to no sound !
-# !    If that's your case - set *U_HL* to *480* taps or less    !
-#
-U_HL=960
-
-### U_SBA: SAMPLER STOPBAND ATTENUATION
-#
-#   Sampling always alias - high frequency signals can fold
-#   back onto lower frequencies creating distortions. To
-#   mitigate that stopband attenuation is used. It can also
-#   slightly reduce noise interference and suppress aliasing
-#   from frequencies above the Nyquist limit.
-#
-#   By default, the maximum stopband value is limited to
-#   144dB (24bit). This remains relevant for most commonly
-#   used audio formats.
-#
-#   You can experiment setting *U_SBA* per format, however,
-#   since the output is always constrained by hardware's
-#   noise floor - best way is setting *U_SBA* value around
-#   device's SNR.
-#
-#   SILMARIL sets stopband attenuation to *127*, which is
-#   around the practical reach for most devices.
-#
-U_SBA=127
 
 ### U_ESTV: EQUAL STEREO SPEAKER VOLUME 
 #
@@ -835,7 +875,7 @@ E_CSMPL=
 #
 D_LIBS=
 #
-# Put advanced D_LIBS flags below when needed
+# Put advanced D_LIBS flags below this string if needed:
 
 ### D_PROPS: DISABLE PROPS EDITS
 #
@@ -850,6 +890,20 @@ D_PROPS=
 #   performing mixer edits.
 #
 D_MIXERS=
+
+### D_HAL: DISABLE HAL EDITS
+#
+#   Setting *D_HAL=true* will prevent SILMARIL from
+#   performing HAL/platform configs edits.
+#
+D_HAL=
+
+### D_APOLICY: DISABLE AUDIOPOLICY EDITS
+#
+#   Setting *D_APOLICY=true* will prevent SILMARIL from
+#   performing audiopolicy configs edits.
+#
+D_APOLICY=
 
 # ! 3 > If neither debug flag helps resolving the issue -
 # you might want to manually navigate to SILMARIL folder

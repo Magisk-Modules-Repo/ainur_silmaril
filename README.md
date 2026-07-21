@@ -16,35 +16,36 @@
 > ### AINULINDALE v2
 > With AINULINDALE at its core, **SILMARIL** aims at eradicating the long lasting issue of android's forced up/down sampling bottleneck. By looping input rate to the output it effectively sets 1:1 native sampling for the OS and third-party apps that rely on it. Next, to make sampling fully transparent it increases temporal domain resolution by expanding the number of discrete points. This firmly secures signal's characteristics and transients, while exponentially dialing down quantization errors, phase distortion, temporal smearing & aliasing artifacts. Additionally, AINULINDALE improves buffer & memory allocation and switches sampler to UHQ state, getting rid of throttling jitter during FIR gen.
 >
->The second-generation AINULINDALE engine sets a new benchmark for audio refinement. Embedded directly into the OS fundamentals of the audio pipeline - it rewrites how sound is processed, handled, and delivered. The result is a transparent, high-fidelity signal path that preserves the integrity of the original recording, ensuring every nuance of spatial imaging and harmonic detail is rendered with clinical accuracy and analog-like musicality:
+>The second-generation AINULINDALE engine redefines Android's audio pipeline at the system level, replacing core processing stages with mathematically refined implementations designed to preserve precision from decoding to final output. Every component is engineered to minimize numerical error, maintain phase integrity, and deliver a transparent, natural presentation that stays faithful to the original recording.:
 >
->> Custom Double-Precision Bessel
+>> Custom Double-Precision Bessel by James34602
 >> 
->> Replacing truncated polynomials with a custom, double-precision Bessel engine, V2 achieves absolute machine epsilon convergence. This eliminates numerical rounding drift, resulting in a pristine windowing profile that preserves spatial imaging and harmonic detail by removing high-frequency artifacts entirely.
+>> A custom double-precision Bessel implementation replaces the original truncated approximation used during FIR coefficient generation. By converging to machine precision, the Kaiser window is generated with significantly lower numerical error, producing more accurate filter coefficients and improved stop-band performance for cleaner resampling.
 >>
 >> High-Fidelity DC-Blocking
 >> 
->> A real-time, single-pole IIR filter at the reverse format conversion layer eliminates DC offset across all bit depths. By using a fixed psychoacoustic pole constant, V2 maintains a pristine subsonic cutoff, ensuring total immunity against thread-local race conditions and jitter. The result is zero precision loss and phase-transparent, deep sub-bass.
+>> A real-time single-pole DC blocker removes DC offset immediately after integer-to-float conversion across every supported PCM format. Internal double-precision filter states preserve long-term accuracy while an ultra-low cutoff frequency maintains complete transparency throughout the audible spectrum, including the deepest sub-bass.
 >> 
 >> TPDF Dither Engine
 >> 
->> V2 introduces a mathematically pure TPDF dither engine to eliminate a correlated quantization distortion. By linearizing the process and employing a 2nd-order closed-loop error feedback network, the architecture shifts dither energy into the near-ultrasonic region. This renders bit-depth reductions transparent, allowing micro-details to resolve clearly.
+>> A mathematically correct TPDF dither engine combined with second-order noise shaping minimizes correlated quantization distortion during bit-depth reduction. Dither energy is shifted toward ultrasonic frequencies, allowing low-level detail and ambience to remain perceptually intact without introducing harsh digital artifacts.
 >> 
 >> Deferred Gain Staging
->> Traditional Android volume scaling destroys dynamic range by squashing signals early. V2 bypasses this by forcing unity gain through the mixer core, maintaining maximum bit-depth precision. Volume reduction is deferred to the final rendering stage and paired with noise-shaping. Shifting rounding errors to the ultrasonic spectrum preserves holographic depth and transient clarity, even at whisper-quiet levels.
+>> 
+>> Instead of attenuating audio before processing, SILMARIL maintains unity gain throughout the DSP pipeline and applies user volume only at the final rendering stage. Preserving full internal signal resolution allows subsequent processing to operate with maximum numerical precision while reducing rounding error during low-volume playback.
 >> 
 >> Soft-Saturation Limiter
 >> 
->> Replacing rigid brickwall limiting, V2 utilizes a 4-tap half-band polyphase interpolation filter for 2x-oversampled inter-sample peak tracking. Signals below -1.0 dBFS remain bit-perfect. When an overshoot occurs, the engine engages an analog tape-style transfer curve. This replaces jagged digital clipping with the warm, musical harmonics of vintage studio gear, eliminating aliasing and fatigue.
+>> A true-peak-aware limiter uses 2x oversampling with polyphase interpolation to detect inter-sample peaks before they reach the output stage. Audio below the limiting threshold passes transparently, while genuine overshoots are controlled using a smooth saturation curve that avoids the harsh artifacts associated with conventional brickwall limiting.
 
 
 ## Installation
-* Flash module with `Magisk(Delta/Kitsune)/KernelSU/KernelSUNext/APatch/SukiSU` app. With ever growing number of forks and frequent changes to core logic - some root solutions might not work correctly.
+* Flash module with `Magisk(Delta/Kitsune)/KernelSU/KernelSUNext/APatch/SukiSU` app. With ever growing number of roots/metamodules as well as their forks, along with frequent changes to their core logic - `some root/mounting solutions might not work correctly`.
 * Initial install will place `UserOptions` file to `internal storage`. To experiment with extra options open `silmaril_useroptions` as text and follow instructions on what flags supposed to do and which values used. :exclamation: Reinstalling the module is vital for changes to take any effect. It is advised to uninstall & reinstall module, instead of flashing it over for some cases.
 
 
 ## Troubleshooting
-In case experiencing any bugs - navigate to `UserOptions`'s `[Debug Section](https://github.com/Magisk-Modules-Repo/ainur_silmaril/blob/master/silmaril_useroptions#L753)` can be found. Follow its instructions to resolve the issue.
+In case experiencing any bugs - navigate to `UserOptions`'s [Debug Section](https://github.com/Magisk-Modules-Repo/ainur_silmaril/blob/master/silmaril_useroptions#L753) can be found. Follow its instructions to resolve the issue.
 
 
 ## Get in touch

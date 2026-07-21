@@ -1,6 +1,6 @@
-##########################################################################################
+[ "$AML" = "false" ] && { ui_print " "; ui_print " - Patching mixers"; }
 if [ -n "$QCP" ]; then
-  ! $AML && { ui_print " "; ui_print " - Patching mixers"; [ "$MIXNUM" -ge 5 ] && ui_print "   $MIXNUM found, be patient, patching might take a while"; }
+  [ "$AML" = "false" ] && { [ "$MIXNUM" -ge 5 ] && ui_print "   - $MIXNUM found, be patient, patching might take a while"; }
   for OFILE in ${MIXS}; do
     nest "$OFILE"; cp_ch "$ORIGDIR""$OFILE" "$FILE"
     full="$(grep -E -o 'headphones(-(and-haptics|generic|dsd|44\.1|advanced|aux|advanced-44\.1|aux-44\.1|ce|no-ce|44\.1-ce|hifi-filter))?|headphone(-(dsd|generic))?|anc-(off-)?headphones|asrc-mode|true-native-mode' "$FILE" | sort -u)"; grep -q "SLIM_0_RX XTLoggingDisable" "$TMD" && patch_xml -s "$FILE" '/mixer/ctl[@name="SLIM_0_RX XTLoggingDisable"]' "TRUE"; grep -q "HiFi Function" "$TMD" && patch_xml -s "$FILE" '/mixer/ctl[@name="HiFi Function"]' "On"; grep -q "HiFi Filter" "$FILE" && patch_xml -u "$FILE" '/mixer/ctl[@name="HiFi Filter"]' "0"
@@ -320,7 +320,6 @@ if [ -n "$QCP" ]; then
   purge
 fi
 if [ -n "$TENZ" ]; then
-  ! $AML && { ui_print " "; ui_print " - Patching mixers"; }
   for OFILE in ${MIXS}; do
     nest "$OFILE"; cp_ch "$ORIGDIR""$OFILE" "$FILE"; format_file "$FILE"
     case $T_CSMPL in "SR_44P1K") US=44100 ;; "SR_48K") US=48000 ;; "SR_88P2K") US=88200 ;; "SR_96K") US=96000 ;; "SR_176P4K") US=176400 ;; "SR_192K") US=192000 ;; esac
@@ -329,7 +328,6 @@ if [ -n "$TENZ" ]; then
   purge
 fi
 if [ -n "$MTK" ]; then
-  ! $AML && { ui_print " "; ui_print " - Patching mixers"; }
   for OFILE in ${MIXA}; do
     nest "$OFILE"; cp_ch "$ORIGDIR""$OFILE" "$FILE"; format_file "$FILE"
     if [ -n "$M_IMP" ]; then
@@ -343,7 +341,6 @@ if [ -n "$MTK" ]; then
   purge
 fi
 if [ -n "$EXY" ]; then
-  ! $AML && { ui_print " "; ui_print " - Patching mixers"; }
   for OFILE in ${MIXS}; do
     nest "$OFILE"; cp_ch "$ORIGDIR""$OFILE" "$FILE"; format_file "$FILE"
     patch_xml -s "$FILE" '/mixer/ctl[@name="Output Ramp Up"]' "0ms/6dB"; patch_xml -s "$FILE" '/mixer/ctl[@name="Output Ramp Down"]' "0ms/6dB"; patch_xml -s "$FILE" '/mixer/ctl[@name="Virtual Bass Boost"]' "Off"; patch_xml -s "$FILE" '/mixer/ctl[@name="Speaker Gain"]' "25"
@@ -358,4 +355,3 @@ if [ -n "$EXY" ]; then
   done
   purge
 fi
-##########################################################################################

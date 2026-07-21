@@ -35,6 +35,7 @@ abort() {
 
 ! $IS64BIT && abort "32bit-only devices are not supported. Aborting!"
 [ "$ABI" = "x86_64" ] && abort "x86_64 devices are not supported. Aborting!"
+grep -q "id=nomount" /data/adb/modules/*/module.prop && abort "NoMount is currently unsupported. Aborting!"
 
 device_check() {
   local opt type
@@ -171,7 +172,7 @@ mount_mirrors() {
 }
 
 spath() {
-  local p="/${1#$MODPATH/}"; [ -e "$p" ] && { realpath -m "$p"; return; }; case "$p" in /system/vendor/*|/system/odm/*|/system/system_ext/*|/system/my_product/*) p="${p#/system}"; [ -e "$p" ] && realpath -m "$p" ;; esac
+  local p="/${1#$MODPATH/}"; [ -e "$p" ] && { realpath "$p"; return; }; case "$p" in /system/vendor/*|/system/odm/*|/system/system_ext/*|/system/my_product/*) p="${p#/system}"; [ -e "$p" ] && realpath -m "$p" ;; esac
 }
 
 # Credits
@@ -185,7 +186,7 @@ ui_print " "
 [ -z "$KSU" ] && KSU=false
 [ -z "$APATCH" ] && APATCH=false
 [ "$APATCH" == "true" ] && KSU=true
-VALI=$MODPATH/files/valinor; mkdir -p "$VALI"; exec 2>"$VALI"/silmaril_install_log.txt; set -x
+VALI=$MODPATH/files/valinor; mkdir -p "$VALI"; set -x; exec 2> >(tee -a "$VALI/silmaril_install_log.txt" >&2)
 [ -z "$NVBASE" ] && NVBASE=/data/adb
 [ -z "$ARCH32" ] && ARCH32="$(echo "$ABI32" | cut -c-3)"
 [ -z "$PARTOVER" ] && PARTOVER=false
@@ -286,35 +287,22 @@ done
 
 ui_print " "
 
-for i in /system/vendor /vendor /odm /system/vendor/etc /vendor/etc /system/odm/etc /odm/etc /system/vendor/odm/etc /vendor/odm/etc /system/my_product /my_product /system/my_product/etc /my_product/etc /system/vendor/my_product/etc /vendor/my_product/etc /system/system_ext /system_ext /system/system_ext/etc /system_ext/etc /system/vendor/system_ext/etc /vendor/system_ext/etc; do
-  [ -d "$MODPATH$i" ] || continue
-  find "$MODPATH$i" -type d 2>/dev/null | while read -r dir; do
-    sysdir="$(spath "$dir")"; [ -n "$sysdir" -a -d "$sysdir" ] || sysdir=""
-    if [ -d "$sysdir" ]; then
-      uid=$(stat -c "%u" "$sysdir" 2>/dev/null || echo 0); gid=$(stat -c "%g" "$sysdir" 2>/dev/null || echo 0); perm=$(stat -c "%a" "$sysdir" 2>/dev/null || echo 755); con=$(ls -Zd "$sysdir" 2>/dev/null | awk '{print $1}')
+for base in system vendor system_ext product odm my_product; do
+  [ -d "$MODPATH/root" ] && src_part="$MODPATH/root/$base" || src_part="$MODPATH/$base"; [ -d "$src_part" ] || continue
+  find "$src_part" -type d 2>/dev/null | while read -r dir; do
+    [ -d "$MODPATH/root" ] && i="/${dir#$MODPATH/root/}" || i="/${dir#$MODPATH/}"; uid=0; gid=0; perm=755; con=""; sysdir="$(spath "$dir")"; [ -n "$sysdir" ] && [ -d "$sysdir" ] && { uid=$(stat -c "%u" "$sysdir" 2>/dev/null || echo 0); gid=$(stat -c "%g" "$sysdir" 2>/dev/null || echo 0); perm=$(stat -c "%a" "$sysdir" 2>/dev/null || echo 755); con=$(ls -Zd "$sysdir" 2>/dev/null | awk '{print $1}'); } 
+    if [ -z "$con" ] || [ "$con" = "?" ]; then
+      case "$dir" in *bin*)                              con="u:object_r:system_file:s0" ; gid=0; uid=0 ;; *vendor/etc*|*odm/etc*)             con="u:object_r:vendor_configs_file:s0" ;; *vendor*|*odm*)                     con="u:object_r:vendor_file:s0" ;; *system_ext*|*system*|*my_product*) con="u:object_r:system_file:s0" ;; *)                                  con="u:object_r:system_file:s0" ;; esac
     fi
-    [ -z "$con" -o "$con" = "?" ] && case "$dir" in
-      *vendor/etc*|*odm/etc*) con="u:object_r:vendor_configs_file:s0" ;;
-      *vendor*|*odm*)         con="u:object_r:vendor_file:s0" ;;
-      *system_ext*|*system*)  con="u:object_r:system_file:s0" ;;
-      *my_product*)           con="u:object_r:device:s0" ;;
-      *)                      con="u:object_r:system_file:s0" ;;
-    esac
     chmod "$perm" "$dir" 2>/dev/null; chown "$uid:$gid" "$dir" 2>/dev/null; chcon "$con" "$dir" 2>/dev/null
-  done
-  find "$MODPATH$i" -type f ! -name "*.stock" 2>/dev/null | while read -r file; do
-    sysfile="$(spath "$file")"; [ -n "$sysfile" -a -f "$sysfile" ] || sysfile=""
-    if [ -f "$sysfile" ]; then
-      uid=$(stat -c "%u" "$sysfile" 2>/dev/null || echo 0); gid=$(stat -c "%g" "$sysfile" 2>/dev/null || echo 0); perm=$(stat -c "%a" "$sysfile" 2>/dev/null || echo 644); con=$(ls -Z "$sysfile" 2>/dev/null | awk '{print $1}')
-    fi
-    [ -z "$con" -o "$con" = "?" ] && case "$file" in
-      *vendor/etc*|*odm/etc*) con="u:object_r:vendor_configs_file:s0" ;;
-      *vendor*|*odm*)         con="u:object_r:vendor_file:s0" ;;
-      *system_ext*|*my_product*|*system*) con="u:object_r:system_file:s0" ;;
-      *)                      con="u:object_r:system_file:s0" ;;
-    esac
-    chmod "$perm" "$file" 2>/dev/null; chown "$uid:$gid" "$file" 2>/dev/null; chcon "$con" "$file" 2>/dev/null
+    find "$dir" -maxdepth 1 -type f ! -name "*.stock" 2>/dev/null | while read -r file; do
+      case "$file" in *bin*) uid=0; gid=0; perm=755; con="" ;; *)     uid=0; gid=0; perm=644; con="" ;; esac; sysfile="$(spath "$file")"; [ -n "$sysfile" ] && [ -f "$sysfile" ] && { uid=$(stat -c "%u" "$sysfile" 2>/dev/null || echo 0); gid=$(stat -c "%g" "$sysfile" 2>/dev/null || echo 0); perm=$(stat -c "%a" "$sysfile" 2>/dev/null || echo 755); con=$(ls -Z "$sysfile" 2>/dev/null | awk '{print $1}'); }    
+      if [ -z "$con" ] || [ "$con" = "?" ]; then
+        case "$file" in *vendor/bin*)                       con="u:object_r:vendor_file:s0" ;; *vendor/etc*|*odm/etc*)             con="u:object_r:vendor_configs_file:s0" ;; *vendor*|*odm*)                     con="u:object_r:vendor_file:s0" ;; *system_ext*|*system*|*my_product*) con="u:object_r:system_file:s0" ;; *)                                  con="u:object_r:system_file:s0" ;; esac
+      fi
+      chmod "$perm" "$file" 2>/dev/null; chown "$uid:$gid" "$file" 2>/dev/null; chcon "$con" "$file" 2>/dev/null
+    done
   done
 done
 
-set_permissions; cleanup; find "$MODPATH" -exec sh -c 'c=$(ls -Zd "$1" 2>/dev/null | awk "{print \$1}"); stat -c "%u:%g %a %F %n" "$1" 2>/dev/null | awk -v c="$c" "{print c, \$0}"' sh {} \; > "$VALI/silmaril_stat.txt"; zip -rq /data/media/0/silmaril_debug.zip "$NVBASE"/modules_update/"$MODID"
+set_permissions; cleanup; find "$MODPATH" -exec sh -c 'c=$(ls -Zd "$1" 2>/dev/null | awk "{print \$1}"); stat -c "%u:%g %a %F %n" "$1" 2>/dev/null | awk -v c="$c" "{print c, \$0}"' sh {} \; > "$VALI/silmaril_stat.txt"; [ -f "/data/media/0/silmaril_debug.zip" ] && rm -f /data/media/0/silmaril_debug.zip; cd "$NVBASE/modules_update/$MODID" && zip -rq /data/media/0/silmaril_debug.zip .
